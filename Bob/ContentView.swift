@@ -22,11 +22,13 @@ struct ContentView: View {
             .animation(.easeInOut(duration: 0.18), value: selectedTab)
             .ignoresSafeArea(.container, edges: .bottom)
 
-            // Tab bar with inline + button
+            // Floating liquid glass tab bar
             FloatingTabBar(
                 selected: Binding(get: { selectedTab }, set: { switchTab(to: $0) }),
                 onAdd: { isAddingTransaction = true }
             )
+            .padding(.horizontal, 24)
+            .padding(.bottom, 20)
         }
         .background(Color.bobBackground.ignoresSafeArea())
         .preferredColorScheme(.dark)

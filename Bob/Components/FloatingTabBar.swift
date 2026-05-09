@@ -4,77 +4,72 @@ enum BobTab: Int, CaseIterable {
     case home = 0
     case recurring
     case spending
-    case more       // still exists for gear-icon navigation; not shown in tab bar
+    case more       // navigable via gear icons; not shown in tab bar
 }
 
-/// Full-width flat dark tab bar — 3 tabs + center "+" action button.
+/// Liquid glass floating capsule tab bar + separate green "+" action button.
 struct FloatingTabBar: View {
     @Binding var selected: BobTab
     var onAdd: () -> Void = {}
 
     var body: some View {
-        HStack(spacing: 0) {
-            tabItem(.home,      icon: "square.grid.2x2.fill", label: "Dashboard")
-            tabItem(.recurring, icon: "arrow.clockwise",       label: "Recurring")
-            addButton
-            tabItem(.spending,  icon: "chart.bar.fill",        label: "Spending")
-            // "More" is intentionally omitted from the visible tab bar
-            // It remains navigable via gear icons on each screen
-            Color.clear.frame(maxWidth: .infinity) // balance right side
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.top, 10)
-        .padding(.bottom, 24)
-        .background(Color.bobDark)
-        .overlay(alignment: .top) {
-            Rectangle().fill(Color.bobHairline).frame(height: 0.5)
+        HStack(spacing: 12) {
+            // Glass capsule — 3 navigation tabs
+            HStack(spacing: 2) {
+                tabButton(.home,      icon: "house.fill",     label: "Dashboard")
+                tabButton(.recurring, icon: "arrow.clockwise", label: "Recurring")
+                tabButton(.spending,  icon: "chart.bar.fill",  label: "Spending")
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .glassEffect(in: Capsule())
+            .shadow(color: .black.opacity(0.25), radius: 20, x: 0, y: 8)
+
+            // Green "+" action button
+            Button {
+                HapticManager.medium()
+                onAdd()
+            } label: {
+                ZStack {
+                    Circle()
+                        .fill(Color.bobAccent)
+                        .frame(width: 56, height: 56)
+                        .shadow(color: Color.bobAccent.opacity(0.4), radius: 12, x: 0, y: 6)
+                    Image(systemName: "plus")
+                        .font(.system(size: 24, weight: .bold))
+                        .foregroundStyle(.black.opacity(0.85))
+                }
+            }
+            .buttonStyle(GreenAddStyle())
         }
     }
 
-    private func tabItem(_ tab: BobTab, icon: String, label: String) -> some View {
+    private func tabButton(_ tab: BobTab, icon: String, label: String) -> some View {
         Button {
-            withAnimation(.easeOut(duration: 0.15)) { selected = tab }
+            withAnimation(.easeOut(duration: 0.18)) { selected = tab }
         } label: {
-            VStack(spacing: 4) {
+            ZStack {
+                if selected == tab {
+                    Circle()
+                        .fill(.black.opacity(0.45))
+                        .frame(width: 44, height: 44)
+                }
                 Image(systemName: icon)
-                    .font(.system(size: 20, weight: selected == tab ? .semibold : .regular))
-                    .foregroundStyle(selected == tab ? Color.bobAccent : Color.bobDarkInk2)
-                Text(label)
-                    .font(.system(size: 10, weight: selected == tab ? .semibold : .regular))
-                    .foregroundStyle(selected == tab ? Color.bobAccent : Color.bobDarkInk2)
+                    .font(.system(size: 19, weight: selected == tab ? .semibold : .regular))
+                    .foregroundStyle(selected == tab ? Color.white : Color.white.opacity(0.5))
             }
-            .frame(maxWidth: .infinity)
+            .frame(width: 54, height: 48)
             .accessibilityLabel(label)
             .accessibilityAddTraits(selected == tab ? .isSelected : [])
         }
         .buttonStyle(.plain)
     }
-
-    private var addButton: some View {
-        Button(action: {
-            HapticManager.medium()
-            onAdd()
-        }) {
-            ZStack {
-                Circle()
-                    .fill(Color.bobAccent)
-                    .frame(width: 52, height: 52)
-                    .shadow(color: Color.bobAccent.opacity(0.35), radius: 8, x: 0, y: 4)
-                Image(systemName: "plus")
-                    .font(.system(size: 22, weight: .bold))
-                    .foregroundStyle(Color.black.opacity(0.85))
-            }
-        }
-        .buttonStyle(AddButtonPressStyle())
-        .frame(maxWidth: .infinity)
-        .accessibilityLabel("Add transaction")
-    }
 }
 
-private struct AddButtonPressStyle: ButtonStyle {
+private struct GreenAddStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? 0.92 : 1.0)
-            .animation(.easeOut(duration: 0.1), value: configuration.isPressed)
+            .scaleEffect(configuration.isPressed ? 0.90 : 1.0)
+            .animation(.spring(response: 0.25, dampingFraction: 0.6), value: configuration.isPressed)
     }
 }
