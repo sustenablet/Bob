@@ -10,6 +10,10 @@ struct RecurringTransactionsView: View {
     @State private var showAddRecurring = false
     @State private var editingRecurring: RecurringTransaction?
     @State private var deletingRecurring: RecurringTransaction?
+    @State private var showCalendar = false
+
+    @AppStorage("paydayViewEnabled") private var paydayViewEnabled = false
+    @AppStorage("currentCashBalance") private var currentCashBalance: Double = 0
 
     enum RecurTab { case upcoming, all }
 
@@ -68,6 +72,9 @@ struct RecurringTransactionsView: View {
             }
         }
         .navigationBarHidden(true)
+        .sheet(isPresented: $showCalendar) {
+            RecurringCalendarView(recurrings: recurrings, currencyCode: currencyCode)
+        }
         .sheet(isPresented: $showAddRecurring) { AddRecurringSheet(currencyCode: currencyCode) }
         .sheet(item: $editingRecurring) { r in AddRecurringSheet(currencyCode: currencyCode, recurringToEdit: r) }
         .alert("Delete Recurring", isPresented: .init(
@@ -141,7 +148,7 @@ struct RecurringTransactionsView: View {
                 .padding(.horizontal, Spacing.pageMargin)
                 .padding(.top, Spacing.m)
 
-            netMonthlyCard
+            paydayViewCard
                 .padding(.horizontal, Spacing.pageMargin)
 
             if !dueSoon.isEmpty {
@@ -175,9 +182,11 @@ struct RecurringTransactionsView: View {
                     }
                 }
                 Spacer()
-                Image(systemName: "arrow.up.right")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(Color.bobInk2)
+                Button { showCalendar = true } label: {
+                    Image(systemName: "arrow.up.right")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(Color.bobInk2)
+                }.buttonStyle(.plain)
             }
 
             miniCalendar
@@ -265,35 +274,104 @@ struct RecurringTransactionsView: View {
         .clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
-    // MARK: – Net monthly card
+    // MARK: – Payday View card
 
-    private var netMonthlyCard: some View {
-        let monthlyOut = activeRecurrings.filter { $0.kind == .expense }.reduce(Decimal(0)) { $0 + monthlyEquivalent($1) }
-        let monthlyIn  = activeRecurrings.filter { $0.kind == .income  }.reduce(Decimal(0)) { $0 + monthlyEquivalent($1) }
-        let net = monthlyIn - monthlyOut
+    private var billsBeforeNextPayday: Decimal {
+        // Sum of expense recurrings due before the next income recurring
+        guard let nextIncome = activeRecurrings.filter({ $0.kind == .income })
+            .sorted(by: { $0.nextDueDate < $1.nextDueDate }).first else {
+            return dueSoon.filter { $0.kind == .expense }.reduce(0) { $0 + $1.amount }
+        }
+        return activeRecurrings.filter {
+            $0.kind == .expense && $0.nextDueDate <= nextIncome.nextDueDate
+        }.reduce(0) { $0 + $1.amount }
+    }
 
-        return HStack(spacing: 14) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Monthly Net")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(Color.bobInk)
-                Text("Based on your active recurring rules")
-                    .font(.system(size: 13))
-                    .foregroundStyle(Color.bobInk2)
-                    .lineLimit(2)
+    private var safeToSpend: Decimal {
+        Decimal(currentCashBalance) - billsBeforeNextPayday
+    }
+
+    private var paydayViewCard: some View {
+        VStack(spacing: 0) {
+            // Toggle row
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Payday View")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(Color.bobInk)
+                    Text("See what is safe to spend based on\nwhen your next income comes.")
+                        .font(.system(size: 14))
+                        .foregroundStyle(Color.bobInk2)
+                }
+                Spacer()
+                Toggle("", isOn: $paydayViewEnabled)
+                    .labelsHidden()
+                    .tint(Color.bobAccent)
             }
-            Spacer()
-            VStack(alignment: .trailing, spacing: 2) {
-                Text((net >= 0 ? "+" : "") + CurrencyFormatter.string(net, code: currencyCode))
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundStyle(net >= 0 ? Color.bobAccent : Color.bobDebit)
-                    .monospacedDigit()
-                Text("per month")
-                    .font(.system(size: 11))
-                    .foregroundStyle(Color.bobInk2)
+            .padding(Spacing.m)
+
+            if paydayViewEnabled {
+                Divider().background(Color.bobHairline)
+
+                // Current Cash row
+                VStack(spacing: 0) {
+                    HStack(spacing: 14) {
+                        ZStack {
+                            Circle().stroke(Color.bobInk2, lineWidth: 1.5).frame(width: 28, height: 28)
+                            Image(systemName: "plus").font(.system(size: 12, weight: .bold)).foregroundStyle(Color.bobInk2)
+                        }
+                        Text("Current Cash").font(.system(size: 16, weight: .medium)).foregroundStyle(Color.bobInk)
+                        Spacer()
+                        TextField("0", value: $currentCashBalance, format: .currency(code: currencyCode))
+                            .font(.system(size: 16, weight: .semibold)).monospacedDigit()
+                            .foregroundStyle(Color.bobInk)
+                            .multilineTextAlignment(.trailing)
+                            .keyboardType(.decimalPad)
+                            .frame(width: 100)
+                        Image(systemName: "chevron.down").font(.system(size: 12)).foregroundStyle(Color.bobInk2)
+                    }
+                    .padding(Spacing.m)
+
+                    Divider().background(Color.bobHairline)
+
+                    // Bills Before Payday
+                    HStack(spacing: 14) {
+                        ZStack {
+                            Circle().stroke(Color.bobInk2, lineWidth: 1.5).frame(width: 28, height: 28)
+                            Image(systemName: "minus").font(.system(size: 12, weight: .bold)).foregroundStyle(Color.bobInk2)
+                        }
+                        Text("Bills Before Payday").font(.system(size: 16, weight: .medium)).foregroundStyle(Color.bobInk)
+                        Spacer()
+                        Text(CurrencyFormatter.string(billsBeforeNextPayday, code: currencyCode))
+                            .font(.system(size: 16, weight: .semibold)).monospacedDigit().foregroundStyle(Color.bobInk)
+                        Image(systemName: "chevron.right").font(.system(size: 12)).foregroundStyle(Color.bobInk2)
+                    }
+                    .padding(Spacing.m)
+
+                    Divider().background(Color.bobHairline)
+
+                    // Safe To Spend
+                    HStack(spacing: 14) {
+                        ZStack {
+                            Circle().fill(Color.bobAccent.opacity(0.2)).frame(width: 28, height: 28)
+                            Image(systemName: "equal").font(.system(size: 12, weight: .bold)).foregroundStyle(Color.bobAccent)
+                        }
+                        Text("Safe To Spend").font(.system(size: 16, weight: .medium)).foregroundStyle(Color.bobInk)
+                        Spacer()
+                        Text(CurrencyFormatter.string(safeToSpend, code: currencyCode))
+                            .font(.system(size: 16, weight: .bold)).monospacedDigit()
+                            .foregroundStyle(safeToSpend >= 0 ? Color.bobInk : Color.bobDebit)
+                        Button { } label: {
+                            ZStack {
+                                Circle().stroke(Color.bobInk2, lineWidth: 1).frame(width: 22, height: 22)
+                                Text("i").font(.system(size: 12, weight: .medium)).foregroundStyle(Color.bobInk2)
+                            }
+                        }.buttonStyle(.plain)
+                    }
+                    .padding(Spacing.m)
+                }
             }
         }
-        .padding(Spacing.m)
         .background(Color.bobSurface)
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
