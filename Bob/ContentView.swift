@@ -22,13 +22,11 @@ struct ContentView: View {
             .animation(.easeInOut(duration: 0.18), value: selectedTab)
             .ignoresSafeArea(.container, edges: .bottom)
 
-            // Tab bar + FAB row
-            HStack(alignment: .bottom, spacing: 0) {
-                FloatingTabBar(selected: Binding(
-                    get: { selectedTab },
-                    set: { switchTab(to: $0) }
-                ))
-            }
+            // Tab bar with inline + button
+            FloatingTabBar(
+                selected: Binding(get: { selectedTab }, set: { switchTab(to: $0) }),
+                onAdd: { isAddingTransaction = true }
+            )
         }
         .background(Color.bobBackground.ignoresSafeArea())
         .preferredColorScheme(.dark)
