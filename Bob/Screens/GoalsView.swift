@@ -333,6 +333,10 @@ struct GoalCard: View {
                         if remaining > 0 {
                             Text(CurrencyFormatter.string(remaining, code: currencyCode) + " to go")
                                 .font(.system(size: 12, weight: .medium)).foregroundStyle(Color.bobInk2)
+                            let monthsLeft = max(Calendar.current.dateComponents([.month], from: Date(), to: goal.deadline).month ?? 1, 1)
+                            let neededPerMonth = remaining / Decimal(monthsLeft)
+                            Text("Save \(CurrencyFormatter.compact(neededPerMonth, code: currencyCode))/mo to reach goal")
+                                .font(.system(size: 11)).foregroundStyle(Color.bobInk3)
                         }
                     }
                     Spacer()

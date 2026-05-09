@@ -10,13 +10,23 @@ struct TransactionsListView: View {
     private var allTransactions: [Expense]
     @Query(sort: \ExpenseCategory.sortOrder) private var allCategories: [ExpenseCategory]
 
-    @State private var searchText        = ""
+    @State private var searchText            = ""
     @State private var editingExpense: Expense?
     @State private var expenseToDelete: Expense?
+    @State private var recategorizingExpense: Expense?
     @State private var selectedCategory: ExpenseCategory?
     @State private var dateRange: DateRangeFilter = .thisMonth
     @State private var sort: SortOption = .newest
-    @State private var showFilters       = false
+    @State private var amountFilter: AmountFilter = .any
+    @State private var showFilters = false
+
+    enum AmountFilter: String, CaseIterable {
+        case any, over50, over100
+        var label: String {
+            switch self { case .any: return "Any amount"; case .over50: return "> $50"; case .over100: return "> $100" }
+        }
+        var minAmount: Decimal { switch self { case .any: return 0; case .over50: return 50; case .over100: return 100 } }
+    }
 
     private var currencyCode: String { settingsList.first?.currencyCode ?? "USD" }
 
@@ -57,6 +67,11 @@ struct TransactionsListView: View {
             base = base.filter { $0.date >= start }
         }
 
+        // Amount filter
+        if amountFilter != .any {
+            base = base.filter { $0.amount >= amountFilter.minAmount }
+        }
+
         // Sort
         switch sort {
         case .newest:  base.sort { $0.date > $1.date }
@@ -70,11 +85,27 @@ struct TransactionsListView: View {
 
     // MARK: – Summary stats
 
-    private var totalIncome: Decimal  { filtered.filter { $0.kind == .income  }.reduce(0) { $0 + $1.amount } }
+    private var totalIncome: Decimal   { filtered.filter { $0.kind == .income  }.reduce(0) { $0 + $1.amount } }
     private var totalExpenses: Decimal { filtered.filter { $0.kind == .expense }.reduce(0) { $0 + $1.amount } }
 
     private var activeFilters: Int {
-        (selectedCategory != nil ? 1 : 0) + (dateRange != .all ? 1 : 0) + (sort != .newest ? 1 : 0)
+        (selectedCategory != nil ? 1 : 0) + (dateRange != .all ? 1 : 0) +
+        (sort != .newest ? 1 : 0) + (amountFilter != .any ? 1 : 0)
+    }
+
+    // Category summary (when filtered to one category)
+    private var categorySummary: (total: Decimal, count: Int, avg: Decimal)? {
+        guard let _ = selectedCategory else { return nil }
+        let txns = filtered
+        guard !txns.isEmpty else { return nil }
+        let total = txns.reduce(0) { $0 + $1.amount }
+        return (total, txns.count, total / Decimal(txns.count))
+    }
+
+    // Highest-spend day
+    private var highestSpendDay: Date? {
+        let byDay = Dictionary(grouping: filtered.filter { $0.kind == .expense }) { Calendar.current.startOfDay(for: $0.date) }
+        return byDay.max { a, b in a.value.reduce(0) { $0 + $1.amount } < b.value.reduce(0) { $0 + $1.amount } }?.key
     }
 
     // MARK: – Grouping
@@ -97,6 +128,12 @@ struct TransactionsListView: View {
                 summaryBar
                 filterBar
 
+                // Category summary panel
+                if let cat = selectedCategory, let summary = categorySummary {
+                    categorySummaryPanel(cat: cat, summary: summary)
+                        .padding(.horizontal, Spacing.pageMargin)
+                }
+
                 if filtered.isEmpty {
                     emptyState
                 } else {
@@ -115,6 +152,12 @@ struct TransactionsListView: View {
                                         Button(role: .destructive) { expenseToDelete = tx } label: {
                                             Label("Delete", systemImage: "trash")
                                         }
+                                    }
+                                    .swipeActions(edge: .leading, allowsFullSwipe: false) {
+                                        Button { recategorizingExpense = tx } label: {
+                                            Label("Category", systemImage: "tag")
+                                        }
+                                        .tint(Color.bobAccent)
                                     }
                                 }
                             } header: {
@@ -153,6 +196,9 @@ struct TransactionsListView: View {
         }
         .sheet(item: $editingExpense) { tx in
             AddTransactionSheet(currencyCode: currencyCode, expenseToEdit: tx)
+        }
+        .sheet(item: $recategorizingExpense) { tx in
+            RecategorizeSheet(expense: tx, currencyCode: currencyCode)
         }
         .alert("Delete Transaction", isPresented: .init(
             get: { expenseToDelete != nil },
@@ -245,6 +291,24 @@ struct TransactionsListView: View {
                     .padding(.horizontal, Spacing.pageMargin)
                 }
 
+                // Amount filter
+                HStack(spacing: 8) {
+                    Text("Amount:")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(Color.bobInk2)
+                        .padding(.leading, Spacing.pageMargin)
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(AmountFilter.allCases, id: \.self) { amt in
+                                filterChip(amt.label, selected: amountFilter == amt) {
+                                    withAnimation { amountFilter = amt }
+                                }
+                            }
+                        }
+                        .padding(.trailing, Spacing.pageMargin)
+                    }
+                }
+
                 // Sort row
                 HStack(spacing: 8) {
                     Text("Sort:")
@@ -269,6 +333,7 @@ struct TransactionsListView: View {
                             selectedCategory = nil
                             dateRange = .all
                             sort = .newest
+                            amountFilter = .any
                         }
                     } label: {
                         Text("Clear all filters")
@@ -298,6 +363,29 @@ struct TransactionsListView: View {
         .buttonStyle(.plain)
     }
 
+    // MARK: – Category summary panel
+
+    private func categorySummaryPanel(cat: ExpenseCategory, summary: (total: Decimal, count: Int, avg: Decimal)) -> some View {
+        HStack(spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 8).fill(Color.bobAccent.opacity(0.1)).frame(width: 36, height: 36)
+                Image(systemName: cat.sfSymbol).font(.system(size: 15, weight: .medium)).foregroundStyle(Color.bobAccent)
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(cat.name).font(.system(size: 14, weight: .semibold)).foregroundStyle(Color.bobInk)
+                Text("\(summary.count) transactions · \(CurrencyFormatter.string(summary.avg, code: currencyCode)) avg")
+                    .font(.system(size: 12)).foregroundStyle(Color.bobInk3)
+            }
+            Spacer()
+            Text(CurrencyFormatter.string(summary.total, code: currencyCode))
+                .font(.system(size: 16, weight: .bold)).monospacedDigit().foregroundStyle(Color.bobInk)
+        }
+        .padding(Spacing.m)
+        .background(Color.bobSurface)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.bobAccent.opacity(0.3), lineWidth: 1))
+    }
+
     // MARK: – Day header
 
     private func dayHeader(for date: Date) -> some View {
@@ -308,12 +396,17 @@ struct TransactionsListView: View {
             let formatted = CurrencyFormatter.string(abs(net as NSDecimalNumber as Decimal), code: currencyCode)
             return net > 0 ? "+\(formatted)" : net < 0 ? "-\(formatted)" : formatted
         }()
+        let isHighest = highestSpendDay == date
 
         return HStack {
-            Text(dayLabel(for: date)).eyebrow()
+            HStack(spacing: 6) {
+                Text(dayLabel(for: date)).eyebrow()
+                if isHighest {
+                    Text("· highest").font(.system(size: 10)).foregroundStyle(Color.bobDebit)
+                }
+            }
             Spacer()
-            Text(netDisplay)
-                .font(.bobMono(12)).monospacedDigit().foregroundStyle(netColor)
+            Text(netDisplay).font(.bobMono(12)).monospacedDigit().foregroundStyle(netColor)
         }
         .padding(.vertical, Spacing.xs)
         .background(Color.bobBackground)
@@ -378,5 +471,79 @@ enum SortOption: String, CaseIterable {
         case .highest: return "Highest"
         case .lowest:  return "Lowest"
         }
+    }
+}
+
+// MARK: – Recategorize sheet
+
+struct RecategorizeSheet: View {
+    @Environment(\.modelContext) private var modelContext
+    @Environment(\.dismiss) private var dismiss
+    @Query(sort: \ExpenseCategory.sortOrder) private var allCategories: [ExpenseCategory]
+
+    let expense: Expense
+    let currencyCode: String
+
+    private var visibleCategories: [ExpenseCategory] { allCategories.filter { $0.kind == expense.kind } }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Button("Cancel") { dismiss() }.font(.bobBody).foregroundStyle(Color.bobInk2)
+                Spacer()
+                Text("Change Category").font(.bobBodyMed)
+                Spacer()
+                Color.clear.frame(width: 60)
+            }
+            .padding(.horizontal, Spacing.pageMargin).padding(.vertical, Spacing.s)
+            HairlineDivider()
+
+            // Current transaction preview
+            HStack(spacing: 10) {
+                Text(expense.merchant?.isEmpty == false ? expense.merchant! : expense.category?.name ?? "Expense")
+                    .font(.system(size: 15, weight: .semibold)).foregroundStyle(Color.bobInk)
+                Spacer()
+                Text(CurrencyFormatter.string(expense.amount, code: currencyCode))
+                    .font(.system(size: 15, weight: .semibold)).monospacedDigit()
+                    .foregroundStyle(expense.kind == .income ? Color.bobAccent : Color.bobDebit)
+            }
+            .padding(.horizontal, Spacing.pageMargin).padding(.vertical, Spacing.m)
+            HairlineDivider()
+
+            ScrollView {
+                let cols = Array(repeating: GridItem(.flexible(), spacing: 12), count: 3)
+                LazyVGrid(columns: cols, spacing: 12) {
+                    ForEach(visibleCategories, id: \.id) { cat in
+                        Button {
+                            expense.category = cat
+                            try? modelContext.save()
+                            HapticManager.light()
+                            dismiss()
+                        } label: {
+                            VStack(spacing: 8) {
+                                ZStack {
+                                    Circle()
+                                        .fill(expense.category?.id == cat.id ? Color.bobAccent : Color.bobSurface)
+                                        .frame(width: 52, height: 52)
+                                    Circle()
+                                        .stroke(expense.category?.id == cat.id ? Color.bobAccent : Color.bobHairline, lineWidth: 1)
+                                        .frame(width: 52, height: 52)
+                                    Image(systemName: cat.sfSymbol)
+                                        .font(.system(size: 18, weight: .medium))
+                                        .foregroundStyle(expense.category?.id == cat.id ? .white : Color.bobInk2)
+                                }
+                                Text(cat.name).font(.system(size: 11, weight: .medium))
+                                    .foregroundStyle(expense.category?.id == cat.id ? Color.bobAccent : Color.bobInk2)
+                                    .multilineTextAlignment(.center).lineLimit(2)
+                            }
+                            .padding(.vertical, 8)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(Spacing.pageMargin)
+            }
+        }
+        .background(Color.bobBackground.ignoresSafeArea())
     }
 }

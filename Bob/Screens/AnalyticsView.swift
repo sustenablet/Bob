@@ -97,6 +97,12 @@ struct AnalyticsView: View {
                             if !insights.isEmpty {
                                 insightsSection.padding(.horizontal, Spacing.pageMargin)
                             }
+                            if (selectedPeriod == .currentMonth || selectedPeriod == .lastMonth) {
+                                weeklyBreakdownSection.padding(.horizontal, Spacing.pageMargin)
+                            }
+                            if reportKind == .expense && recurringVsOneTimeSplit != nil {
+                                recurringVsOneTimeSection.padding(.horizontal, Spacing.pageMargin)
+                            }
                             if reportKind == .expense && !topMerchants.isEmpty {
                                 topMerchantsSection.padding(.horizontal, Spacing.pageMargin)
                             }
@@ -183,13 +189,20 @@ struct AnalyticsView: View {
 
     // MARK: – Key metrics row
 
+    private var savingsRatePct: Double {
+        let inc = (currentPeriodIncome as NSDecimalNumber).doubleValue
+        guard inc > 0 else { return 0 }
+        let exp = (currentPeriodExpenses as NSDecimalNumber).doubleValue
+        return ((inc - exp) / inc) * 100
+    }
+
     private var keyMetricsRow: some View {
         HStack(spacing: Spacing.s) {
             metricTile(
                 icon: reportKind == .expense ? "arrow.up.circle.fill" : "arrow.down.circle.fill",
                 iconColor: reportKind == .expense ? .bobDebit : .bobAccent,
-                value: CurrencyFormatter.string(totalAmount, code: currencyCode),
-                label: reportKind == .expense ? "Total Spent" : "Total Income"
+                value: CurrencyFormatter.compact(totalAmount, code: currencyCode),
+                label: reportKind == .expense ? "Total Spent" : "Total Earned"
             )
             metricTile(
                 icon: "calendar.badge.clock",
@@ -197,16 +210,13 @@ struct AnalyticsView: View {
                 value: avgDailySpend > 0 ? CurrencyFormatter.compact(avgDailySpend, code: currencyCode) : "—",
                 label: "Daily Avg"
             )
-            if let top = categoryData.first {
-                metricTile(
-                    icon: top.symbol,
-                    iconColor: chartPaletteColor(for: 0),
-                    value: top.category,
-                    label: "Top Category"
-                )
-            } else {
-                metricTile(icon: "chart.pie", iconColor: Color.bobInk3, value: "—", label: "Top Category")
-            }
+            let rate = savingsRatePct
+            metricTile(
+                icon: rate >= 0 ? "arrow.up.right.circle.fill" : "arrow.down.right.circle.fill",
+                iconColor: rate >= 0 ? .bobAccent : .bobDebit,
+                value: currentPeriodIncome > 0 ? String(format: "%.0f%%", rate) : "—",
+                label: "Savings Rate"
+            )
         }
     }
 
@@ -598,6 +608,132 @@ struct AnalyticsView: View {
         .padding(Spacing.m)
         .background(Color.bobSurface)
         .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+
+    // MARK: – Weekly breakdown (current/last month only)
+
+    private var weeklyBreakdown: [(label: String, range: String, amount: Decimal)] {
+        let cal = Calendar.current
+        // Determine the month bounds
+        let bounds: (start: Date, end: Date)
+        if selectedPeriod == .currentMonth {
+            bounds = MonthSummary.currentMonthBounds()
+        } else { // lastMonth
+            let b = MonthSummary.currentMonthBounds()
+            let s = cal.date(byAdding: .month, value: -1, to: b.start) ?? b.start
+            bounds = (s, b.start)
+        }
+
+        let txns = allExpenses.filter { $0.kind == reportKind && $0.date >= bounds.start && $0.date < bounds.end }
+        var weeks: [(String, String, Decimal)] = []
+        var weekStart = bounds.start
+        var weekNum = 1
+        let df = DateFormatter(); df.dateFormat = "MMM d"
+        while weekStart < bounds.end {
+            let weekEnd = min(cal.date(byAdding: .day, value: 7, to: weekStart) ?? bounds.end, bounds.end)
+            let total = txns.filter { $0.date >= weekStart && $0.date < weekEnd }.reduce(0) { $0 + $1.amount }
+            let label = "Week \(weekNum)"
+            let range = "\(df.string(from: weekStart))–\(df.string(from: cal.date(byAdding: .day, value: -1, to: weekEnd) ?? weekEnd))"
+            weeks.append((label, range, total))
+            weekStart = weekEnd
+            weekNum += 1
+        }
+        return weeks.filter { $0.2 > 0 }
+    }
+
+    private var weeklyBreakdownSection: some View {
+        let weeks = weeklyBreakdown
+        let peak = weeks.map { $0.2 }.max() ?? 1
+        return VStack(alignment: .leading, spacing: Spacing.m) {
+            Text("Weekly Breakdown").font(.system(size: 16, weight: .semibold)).foregroundStyle(Color.bobInk)
+            if weeks.isEmpty {
+                Text("No data").font(.bobBody).foregroundStyle(Color.bobInk3)
+            } else {
+                VStack(spacing: 10) {
+                    ForEach(Array(weeks.enumerated()), id: \.offset) { _, week in
+                        HStack(spacing: 10) {
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(week.0).font(.system(size: 13, weight: .semibold)).foregroundStyle(Color.bobInk)
+                                Text(week.1).font(.system(size: 10)).foregroundStyle(Color.bobInk3)
+                            }
+                            .frame(width: 80, alignment: .leading)
+                            GeometryReader { geo in
+                                let w = geo.size.width * CGFloat(Double((week.2 / peak) as NSDecimalNumber))
+                                ZStack(alignment: .leading) {
+                                    RoundedRectangle(cornerRadius: 4).fill(Color.bobHairline).frame(height: 8)
+                                    RoundedRectangle(cornerRadius: 4)
+                                        .fill(reportKind == .expense ? Color.bobDebit : Color.bobAccent)
+                                        .frame(width: w, height: 8)
+                                }
+                            }.frame(height: 8)
+                            Text(CurrencyFormatter.compact(week.2, code: currencyCode))
+                                .font(.system(size: 12, weight: .semibold)).monospacedDigit().foregroundStyle(Color.bobInk)
+                                .frame(width: 56, alignment: .trailing)
+                        }
+                    }
+                }
+            }
+        }
+        .padding(Spacing.m)
+        .background(Color.bobSurface)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+
+    // MARK: – Recurring vs One-time
+
+    @Query(sort: \RecurringTransaction.nextDueDate) private var allRecurrings: [RecurringTransaction]
+
+    private var recurringVsOneTimeSplit: (recurring: Decimal, oneTime: Decimal)? {
+        guard !filteredTransactions.isEmpty else { return nil }
+        let recurringNames = Set(allRecurrings.map { $0.name.lowercased() })
+        var rec: Decimal = 0; var oneTime: Decimal = 0
+        for tx in filteredTransactions {
+            let name = (tx.merchant ?? tx.category?.name ?? "").lowercased()
+            if recurringNames.contains(name) { rec += tx.amount } else { oneTime += tx.amount }
+        }
+        return (rec, oneTime)
+    }
+
+    private var recurringVsOneTimeSection: some View {
+        let split = recurringVsOneTimeSplit!
+        let total = split.recurring + split.oneTime
+        let recFrac = total > 0 ? CGFloat(Double((split.recurring / total) as NSDecimalNumber)) : 0
+
+        return VStack(alignment: .leading, spacing: Spacing.m) {
+            Text("Recurring vs One-time").font(.system(size: 16, weight: .semibold)).foregroundStyle(Color.bobInk)
+            GeometryReader { geo in
+                HStack(spacing: 2) {
+                    if recFrac > 0 {
+                        RoundedRectangle(cornerRadius: 4).fill(Color.bobHex(0xBA68C8))
+                            .frame(width: geo.size.width * recFrac, height: 12)
+                    }
+                    if recFrac < 1 {
+                        RoundedRectangle(cornerRadius: 4).fill(Color.bobAccent.opacity(0.6))
+                            .frame(width: geo.size.width * (1 - recFrac), height: 12)
+                    }
+                }
+            }
+            .frame(height: 12)
+            HStack(spacing: 20) {
+                legendRow(color: Color.bobHex(0xBA68C8), label: "Recurring", amount: split.recurring)
+                legendRow(color: Color.bobAccent.opacity(0.6), label: "One-time", amount: split.oneTime)
+                Spacer()
+            }
+        }
+        .padding(Spacing.m)
+        .background(Color.bobSurface)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+
+    private func legendRow(color: Color, label: String, amount: Decimal) -> some View {
+        HStack(spacing: 6) {
+            Circle().fill(color).frame(width: 10, height: 10)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(label).font(.system(size: 12)).foregroundStyle(Color.bobInk3)
+                Text(CurrencyFormatter.string(amount, code: currencyCode))
+                    .font(.system(size: 13, weight: .semibold)).monospacedDigit().foregroundStyle(Color.bobInk)
+            }
+        }
     }
 
     // MARK: – Top Merchants

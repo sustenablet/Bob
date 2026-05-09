@@ -144,6 +144,41 @@ struct HomeView: View {
             .prefix(2).map { $0 }
     }
 
+    // This week vs last week
+    private var thisWeekExpenses: Decimal {
+        let cal = Calendar.current
+        let start = cal.date(from: cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: Date())) ?? Date()
+        return allExpenses.filter { $0.kind == .expense && $0.date >= start }.reduce(0) { $0 + $1.amount }
+    }
+    private var lastWeekExpenses: Decimal {
+        let cal = Calendar.current
+        let thisStart = cal.date(from: cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: Date())) ?? Date()
+        guard let lastStart = cal.date(byAdding: .weekOfYear, value: -1, to: thisStart) else { return 0 }
+        return allExpenses.filter { $0.kind == .expense && $0.date >= lastStart && $0.date < thisStart }.reduce(0) { $0 + $1.amount }
+    }
+    private var weeklyDayBars: [(label: String, amount: Decimal)] {
+        let cal = Calendar.current
+        let start = cal.date(from: cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: Date())) ?? Date()
+        let labels = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"]
+        return (0..<7).map { offset in
+            let day = cal.date(byAdding: .day, value: offset, to: start) ?? start
+            let next = cal.date(byAdding: .day, value: 1, to: day) ?? day
+            let amount = allExpenses.filter { $0.kind == .expense && $0.date >= day && $0.date < next }.reduce(0) { $0 + $1.amount }
+            return (labels[offset], amount)
+        }
+    }
+
+    // Income sources breakdown
+    private var incomeBySource: [(name: String, amount: Decimal)] {
+        var dict: [String: Decimal] = [:]
+        for tx in monthTransactions where tx.kind == .income {
+            let key = tx.category?.name ?? "Other"
+            dict[key, default: 0] += tx.amount
+        }
+        let result = dict.map { (name: $0.key, amount: $0.value) }.sorted { $0.amount > $1.amount }
+        return result.count >= 2 ? result : []
+    }
+
     // Today's transactions
     private var todaysTransactions: [Expense] {
         allExpenses.filter { Calendar.current.isDateInToday($0.date) }
@@ -244,9 +279,14 @@ struct HomeView: View {
                                 .padding(.top, Spacing.m)
                         }
 
-                        if !topCategories.isEmpty {
-                            topCategoriesStrip
+                        if selectedMonthOffset == 0 {
+                            thisWeekCard
+                                .padding(.horizontal, Spacing.pageMargin)
                                 .padding(.top, Spacing.m)
+                        }
+
+                        if !topCategories.isEmpty {
+                            topCategoriesStrip.padding(.top, Spacing.m)
                         }
 
                         actionRow
@@ -255,6 +295,12 @@ struct HomeView: View {
 
                         if !activeGoals.isEmpty {
                             goalsTeaser
+                                .padding(.horizontal, Spacing.pageMargin)
+                                .padding(.top, Spacing.xl)
+                        }
+
+                        if !incomeBySource.isEmpty {
+                            incomeSourcesCard
                                 .padding(.horizontal, Spacing.pageMargin)
                                 .padding(.top, Spacing.xl)
                         }
@@ -779,6 +825,88 @@ struct HomeView: View {
         .background(Color.bobSurface)
         .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Color.bobHairline, lineWidth: 1))
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+
+    // MARK: – This week card
+
+    private var thisWeekCard: some View {
+        let bars = weeklyDayBars
+        let peak = bars.map { $0.amount }.max() ?? 1
+        let change = lastWeekExpenses > 0 ? ((thisWeekExpenses - lastWeekExpenses) / lastWeekExpenses * 100 as NSDecimalNumber).doubleValue : nil
+
+        return VStack(spacing: 10) {
+            HStack {
+                Text("This Week").font(.system(size: 14, weight: .semibold)).foregroundStyle(Color.bobInk)
+                Spacer()
+                if let ch = change {
+                    HStack(spacing: 3) {
+                        Image(systemName: ch > 0 ? "arrow.up.right" : "arrow.down.right")
+                            .font(.system(size: 10, weight: .bold))
+                        Text(String(format: "%.0f%%", abs(ch))).font(.system(size: 12, weight: .semibold))
+                    }
+                    .foregroundStyle(ch > 0 ? Color.bobDebit : Color.bobAccent)
+                }
+                Text(CurrencyFormatter.string(thisWeekExpenses, code: currencyCode))
+                    .font(.system(size: 14, weight: .bold)).monospacedDigit().foregroundStyle(Color.bobInk)
+            }
+            HStack(alignment: .bottom, spacing: 0) {
+                ForEach(Array(bars.enumerated()), id: \.offset) { idx, bar in
+                    VStack(spacing: 3) {
+                        let barH = peak > 0 ? CGFloat(Double((bar.amount / peak) as NSDecimalNumber)) * 36 : 2
+                        RoundedRectangle(cornerRadius: 3)
+                            .fill(bar.amount > 0 ? Color.bobDebit.opacity(0.7) : Color.bobHairline)
+                            .frame(height: Swift.max(barH, 2))
+                        Text(bar.label).font(.system(size: 9)).foregroundStyle(Color.bobInk3)
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+            }
+            .frame(height: 52)
+        }
+        .padding(Spacing.m)
+        .background(Color.bobSurface)
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.bobHairline, lineWidth: 1))
+    }
+
+    // MARK: – Income sources card
+
+    private var incomeSourcesCard: some View {
+        let total = incomeBySource.reduce(Decimal(0)) { $0 + $1.amount }
+        return VStack(alignment: .leading, spacing: Spacing.m) {
+            HStack {
+                Text("Income Sources").font(.system(size: 14, weight: .semibold)).foregroundStyle(Color.bobInk)
+                Spacer()
+                Text(CurrencyFormatter.string(total, code: currencyCode))
+                    .font(.system(size: 14, weight: .bold)).monospacedDigit().foregroundStyle(Color.bobAccent)
+            }
+            VStack(spacing: 8) {
+                ForEach(incomeBySource.prefix(4), id: \.name) { source in
+                    let share = total > 0 ? CGFloat(Double((source.amount / total) as NSDecimalNumber)) : 0
+                    let pct = Int(share * 100)
+                    VStack(spacing: 4) {
+                        HStack {
+                            Text(source.name).font(.system(size: 13)).foregroundStyle(Color.bobInk)
+                            Spacer()
+                            Text(CurrencyFormatter.string(source.amount, code: currencyCode))
+                                .font(.system(size: 13, weight: .semibold)).monospacedDigit().foregroundStyle(Color.bobAccent)
+                            Text("\(pct)%").font(.system(size: 11)).foregroundStyle(Color.bobInk3).frame(width: 32, alignment: .trailing)
+                        }
+                        GeometryReader { geo in
+                            ZStack(alignment: .leading) {
+                                RoundedRectangle(cornerRadius: 3).fill(Color.bobHairline).frame(height: 5)
+                                RoundedRectangle(cornerRadius: 3).fill(Color.bobAccent.opacity(0.7))
+                                    .frame(width: geo.size.width * share, height: 5)
+                            }
+                        }.frame(height: 5)
+                    }
+                }
+            }
+        }
+        .padding(Spacing.m)
+        .background(Color.bobSurface)
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.bobHairline, lineWidth: 1))
     }
 
     // MARK: – Today card

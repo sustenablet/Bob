@@ -90,6 +90,7 @@ struct GoalDetailView: View {
                         progressSection
                         statsRow
                         paceAlertView
+                        if !goal.isCompleted { monthlyTargetCard }
                         if !monthlyData.isEmpty { chartSection }
                         if !goal.isCompleted { addContributionButton }
                         historySection
@@ -249,30 +250,63 @@ struct GoalDetailView: View {
 
     // MARK: – 3-stat row
 
+    // Consecutive months with ≥1 contribution
+    private var contributionStreak: Int {
+        let cal = Calendar.current
+        var streak = 0
+        var checkMonth = Date()
+        let sorted = contributions // already newest first
+        var byMonth: [String: Bool] = [:]
+        let fmt = DateFormatter(); fmt.dateFormat = "yyyy-MM"
+        for c in sorted { byMonth[fmt.string(from: c.date)] = true }
+        while byMonth[fmt.string(from: checkMonth)] == true {
+            streak += 1
+            checkMonth = cal.date(byAdding: .month, value: -1, to: checkMonth) ?? checkMonth
+        }
+        return streak
+    }
+
+    // This month's contributions
+    private var thisMonthContributions: Decimal {
+        let bounds = MonthSummary.currentMonthBounds()
+        return contributions.filter { $0.date >= bounds.start && $0.date <= bounds.end }.reduce(0) { $0 + $1.amount }
+    }
+
+    // Required monthly to hit deadline
+    private var requiredMonthly: Decimal? {
+        let months = Decimal(max(monthsToDeadline, 1))
+        guard remaining > 0, months > 0 else { return nil }
+        return remaining / months
+    }
+
     private var statsRow: some View {
         HStack(spacing: Spacing.s) {
             statTile(
                 icon: "arrow.up.circle.fill",
                 iconColor: Color.bobAccent,
-                value: monthlyAverage > 0
-                    ? CurrencyFormatter.string(monthlyAverage, code: currencyCode)
-                    : "—",
+                value: monthlyAverage > 0 ? CurrencyFormatter.compact(monthlyAverage, code: currencyCode) : "—",
                 label: "Monthly avg"
             )
-
             statTile(
                 icon: projectedIcon,
                 iconColor: projectedIconColor,
                 value: projectedLabel,
                 label: "Projected"
             )
-
             statTile(
                 icon: "calendar",
                 iconColor: deadlineIconColor,
                 value: deadlineValue,
                 label: goal.isCompleted ? "Completed" : "Days left"
             )
+            if contributionStreak >= 2 {
+                statTile(
+                    icon: "flame.fill",
+                    iconColor: Color.bobHex(0xFF6B35),
+                    value: "\(contributionStreak)mo",
+                    label: "Streak"
+                )
+            }
         }
     }
 
@@ -326,6 +360,52 @@ struct GoalDetailView: View {
         .padding(.vertical, 16)
         .background(Color.bobSurface)
         .clipShape(RoundedRectangle(cornerRadius: 14))
+    }
+
+    // MARK: – Monthly target card
+
+    @ViewBuilder
+    private var monthlyTargetCard: some View {
+        if let needed = requiredMonthly {
+            let saved = thisMonthContributions
+            let progress = needed > 0 ? min(Double((saved / needed) as NSDecimalNumber), 1.0) : 0
+            let metTarget = saved >= needed
+
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Text("Monthly Target").font(.system(size: 14, weight: .semibold)).foregroundStyle(Color.bobInk)
+                    Spacer()
+                    Text(metTarget ? "✓ Target met!" : "\(CurrencyFormatter.string(needed - saved, code: currencyCode)) short")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(metTarget ? Color.bobAccent : Color.bobDebit)
+                }
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Need").font(.system(size: 11)).foregroundStyle(Color.bobInk3)
+                        Text(CurrencyFormatter.string(needed, code: currencyCode))
+                            .font(.system(size: 15, weight: .bold)).monospacedDigit().foregroundStyle(Color.bobInk)
+                    }
+                    GeometryReader { geo in
+                        ZStack(alignment: .leading) {
+                            RoundedRectangle(cornerRadius: 4).fill(Color.bobHairline).frame(height: 8)
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(metTarget ? Color.bobAccent : Color.bobHex(0xF59E0B))
+                                .frame(width: geo.size.width * progress, height: 8)
+                        }
+                    }.frame(height: 8)
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text("Saved").font(.system(size: 11)).foregroundStyle(Color.bobInk3)
+                        Text(CurrencyFormatter.string(saved, code: currencyCode))
+                            .font(.system(size: 15, weight: .bold)).monospacedDigit()
+                            .foregroundStyle(metTarget ? Color.bobAccent : Color.bobInk2)
+                    }
+                }
+            }
+            .padding(Spacing.m)
+            .background(Color.bobSurface)
+            .clipShape(RoundedRectangle(cornerRadius: 14))
+            .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.bobHairline, lineWidth: 1))
+        }
     }
 
     // MARK: – Pace alert
