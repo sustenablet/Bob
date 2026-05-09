@@ -62,6 +62,8 @@ struct GoalsView: View {
             }
             .navigationTitle("Savings Goals")
             .navigationBarTitleDisplayMode(.large)
+            .toolbarBackground(Color.bobBackground, for: .navigationBar)
+            .toolbarBackgroundVisibility(.visible, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { showAddGoal = true } label: {

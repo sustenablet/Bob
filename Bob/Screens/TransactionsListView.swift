@@ -173,6 +173,8 @@ struct TransactionsListView: View {
         }
         .navigationTitle("Transactions")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(Color.bobBackground, for: .navigationBar)
+        .toolbarBackgroundVisibility(.visible, for: .navigationBar)
         .searchable(text: $searchText, prompt: "Search transactions")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {

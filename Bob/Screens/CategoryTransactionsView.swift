@@ -73,6 +73,8 @@ struct CategoryTransactionsView: View {
         }
         .navigationTitle(categoryName)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(Color.bobBackground, for: .navigationBar)
+        .toolbarBackgroundVisibility(.visible, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .principal) {
                 VStack(spacing: 2) {

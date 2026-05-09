@@ -102,6 +102,8 @@ struct GoalDetailView: View {
             }
             .navigationTitle(goal.name)
             .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(Color.bobBackground, for: .navigationBar)
+        .toolbarBackgroundVisibility(.visible, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Done") { dismiss() }

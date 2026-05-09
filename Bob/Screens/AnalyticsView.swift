@@ -125,6 +125,8 @@ struct AnalyticsView: View {
             }
             .navigationTitle("Analytics")
             .navigationBarTitleDisplayMode(.large)
+            .toolbarBackground(Color.bobBackground, for: .navigationBar)
+            .toolbarBackgroundVisibility(.visible, for: .navigationBar)
             .navigationDestination(item: $drilldownCategory) { cat in
                 CategoryTransactionsView(
                     categoryName: cat.category,

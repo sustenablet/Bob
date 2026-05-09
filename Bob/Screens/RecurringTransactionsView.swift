@@ -87,6 +87,8 @@ struct RecurringTransactionsView: View {
             }
             .navigationTitle("Recurring")
             .navigationBarTitleDisplayMode(.large)
+            .toolbarBackground(Color.bobBackground, for: .navigationBar)
+            .toolbarBackgroundVisibility(.visible, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { showAddRecurring = true } label: {

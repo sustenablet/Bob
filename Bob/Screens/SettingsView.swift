@@ -51,6 +51,8 @@ struct SettingsView: View {
         }
         .navigationTitle("Settings")
         .navigationBarTitleDisplayMode(.large)
+        .toolbarBackground(Color.bobBackground, for: .navigationBar)
+        .toolbarBackgroundVisibility(.visible, for: .navigationBar)
         .sheet(isPresented: $showBudgetEditor) {
             BudgetEditorSheet(
                 currencyCode: currencyCode,
@@ -152,10 +154,10 @@ struct SettingsView: View {
                 iconBox("coloncurrencysign", color: Color.bobHex(0x1A73E8))
                 Text("Currency").font(.bobBody).foregroundStyle(Color.bobInk)
                 Spacer()
-                Text(currencyCode).font(.system(size: 14)).foregroundStyle(Color.bobInk3)
+                Text(currencyCode).font(.system(size: 14)).foregroundStyle(Color.bobInk2)
                 Image(systemName: "chevron.up.chevron.down")
                     .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(Color.bobInk3)
+                    .foregroundStyle(Color.bobInk2)
             }
             .padding(.vertical, 12)
             .contentShape(Rectangle())
@@ -239,7 +241,7 @@ struct SettingsView: View {
                 iconBox("info.circle.fill", color: Color.bobHex(0x9E9E9E))
                 Text("Version").font(.bobBody).foregroundStyle(Color.bobInk)
                 Spacer()
-                Text(appVersion).font(.system(size: 14)).foregroundStyle(Color.bobInk3)
+                Text(appVersion).font(.system(size: 14)).foregroundStyle(Color.bobInk2)
             }
             .padding(.vertical, 12)
 
@@ -307,11 +309,11 @@ struct SettingsView: View {
             Text(title).font(.bobBody).foregroundStyle(Color.bobInk)
             Spacer()
             if let v = value {
-                Text(v).font(.system(size: 14)).foregroundStyle(Color.bobInk3)
+                Text(v).font(.system(size: 14)).foregroundStyle(Color.bobInk2)
             }
             Image(systemName: "chevron.right")
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(Color.bobInk3)
+                .foregroundStyle(Color.bobInk2)
         }
         .padding(.vertical, 12)
         .contentShape(Rectangle())
@@ -452,6 +454,8 @@ struct CategoriesView: View {
         }
         .navigationTitle("Categories")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(Color.bobBackground, for: .navigationBar)
+        .toolbarBackgroundVisibility(.visible, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
@@ -497,7 +501,7 @@ struct CategoriesView: View {
             Spacer()
             let count = cat.expenses?.count ?? 0
             Text(count > 0 ? "\(count) uses" : "Unused")
-                .font(.system(size: 12)).foregroundStyle(Color.bobInk3)
+                .font(.system(size: 12)).foregroundStyle(Color.bobInk2)
         }
         .padding(.vertical, 4)
         .listRowBackground(Color.bobSurface)
@@ -548,6 +552,8 @@ struct TemplatesView: View {
         }
         .navigationTitle("Quick Templates")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(Color.bobBackground, for: .navigationBar)
+        .toolbarBackgroundVisibility(.visible, for: .navigationBar)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button { showNew = true } label: { Image(systemName: "plus").foregroundStyle(Color.bobInk) }
@@ -586,7 +592,7 @@ struct TemplatesView: View {
             }
             VStack(alignment: .leading, spacing: 2) {
                 Text(t.name).font(.system(size: 15, weight: .medium)).foregroundStyle(Color.bobInk)
-                Text(t.kind == .income ? "Income" : "Expense").font(.system(size: 12)).foregroundStyle(Color.bobInk3)
+                Text(t.kind == .income ? "Income" : "Expense").font(.system(size: 12)).foregroundStyle(Color.bobInk2)
             }
             Spacer()
             Text(CurrencyFormatter.string(t.amount, code: currencyCode))
