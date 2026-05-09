@@ -15,7 +15,7 @@ struct RecurringTransactionsView: View {
     @AppStorage("paydayViewEnabled") private var paydayViewEnabled = false
     @AppStorage("currentCashBalance") private var currentCashBalance: Double = 0
 
-    enum RecurTab { case upcoming, all }
+    enum RecurTab { case upcoming, analytics }
 
     private var currencyCode: String { settingsList.first?.currencyCode ?? "USD" }
     private var activeRecurrings: [RecurringTransaction] { recurrings.filter { $0.isActive } }
@@ -65,7 +65,10 @@ struct RecurringTransactionsView: View {
                         if selectedTab == .upcoming {
                             upcomingContent
                         } else {
-                            allContent
+                            RecurringAnalyticsView(
+                                recurrings: recurrings,
+                                currencyCode: currencyCode
+                            )
                         }
                     }
                 }
@@ -120,7 +123,7 @@ struct RecurringTransactionsView: View {
     private var tabPicker: some View {
         HStack(spacing: 0) {
             tabButton("Upcoming", tab: .upcoming)
-            tabButton("All", tab: .all)
+            tabButton("Analytics", tab: .analytics)
         }
     }
 
