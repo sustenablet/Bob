@@ -2,55 +2,49 @@ import SwiftUI
 
 enum BobTab: Int, CaseIterable {
     case home = 0
-    case goals
     case recurring
-    case analytics
+    case spending
+    case more
 }
 
-/// Floating Liquid Glass pill tab bar — four icon-only tabs.
+/// Full-width flat dark tab bar — matches the reference design.
 struct FloatingTabBar: View {
     @Binding var selected: BobTab
 
     var body: some View {
-        HStack(spacing: 4) {
-            tabButton(.home,      systemImage: "house.fill")
-            tabButton(.goals,     systemImage: "target")
-            tabButton(.recurring, systemImage: "arrow.repeat")
-            tabButton(.analytics, systemImage: "chart.bar.fill")
+        HStack(spacing: 0) {
+            tabItem(.home,      icon: "square.grid.2x2.fill",  label: "Dashboard")
+            tabItem(.recurring, icon: "arrow.clockwise",        label: "Recurring")
+            tabItem(.spending,  icon: "chart.bar.fill",         label: "Spending")
+            tabItem(.more,      icon: "line.3.horizontal",      label: "More")
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
-        .glassEffect(in: Capsule())
-        .shadow(color: Color.black.opacity(0.10), radius: 14, x: 0, y: 6)
+        .frame(maxWidth: .infinity)
+        .padding(.top, 12)
+        .padding(.bottom, 24)
+        .background(Color.bobDark)
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(Color.bobHairline)
+                .frame(height: 0.5)
+        }
     }
 
-    private func tabButton(_ tab: BobTab, systemImage: String) -> some View {
+    private func tabItem(_ tab: BobTab, icon: String, label: String) -> some View {
         Button {
-            withAnimation(.easeOut(duration: 0.18)) { selected = tab }
+            withAnimation(.easeOut(duration: 0.15)) { selected = tab }
         } label: {
-            ZStack {
-                if selected == tab {
-                    Circle()
-                        .fill(Color.bobInk.opacity(0.10))
-                        .frame(width: 44, height: 44)
-                }
-                Image(systemName: systemImage)
-                    .font(.system(size: 18, weight: .medium))
-                    .foregroundStyle(selected == tab ? Color.bobInk : Color.bobInk2)
+            VStack(spacing: 4) {
+                Image(systemName: icon)
+                    .font(.system(size: 20, weight: selected == tab ? .semibold : .regular))
+                    .foregroundStyle(selected == tab ? Color.bobAccent : Color.bobDarkInk2)
+                Text(label)
+                    .font(.system(size: 10, weight: selected == tab ? .semibold : .regular))
+                    .foregroundStyle(selected == tab ? Color.bobAccent : Color.bobDarkInk2)
             }
-            .frame(width: 54, height: 46)
-            .accessibilityLabel(tabLabel(for: tab))
+            .frame(maxWidth: .infinity)
+            .accessibilityLabel(label)
             .accessibilityAddTraits(selected == tab ? .isSelected : [])
         }
         .buttonStyle(.plain)
-    }
-
-    private func tabLabel(for tab: BobTab) -> String {
-        switch tab {
-        case .home:      return "Home"
-        case .goals:     return "Savings Goals"
-        case .recurring: return "Recurring"
-        case .analytics: return "Analytics"
-        }
     }
 }

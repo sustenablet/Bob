@@ -1,71 +1,49 @@
 import SwiftUI
 
 extension Color {
-    // Backgrounds
-    static let bobBackground = Color.bobHex(0xF7F5F0)
-    static let bobSurface = Color.bobHex(0xFFFFFF)
+    // MARK: – Dark theme backgrounds
+    static let bobBackground   = Color.bobHex(0x0D0D18)   // page background
+    static let bobSurface      = Color.bobHex(0x1A1A28)   // card / elevated surface
+    static let bobSurface2     = Color.bobHex(0x22222F)   // slightly more elevated
+    static let bobSurface3     = Color.bobHex(0x2A2A3A)   // borders, dividers
 
-    // Text hierarchy
-    static let bobInk = Color.bobHex(0x111110)
-    static let bobInk2 = Color.bobHex(0x4A4A47)
-    static let bobInk3 = Color.bobHex(0x9A9893)
+    // MARK: – Text hierarchy
+    static let bobInk          = Color.bobHex(0xFFFFFF)   // primary text
+    static let bobInk2         = Color.bobHex(0xA0A0B4)   // secondary text
+    static let bobInk3         = Color.bobHex(0x5A5A70)   // tertiary / placeholders
 
-    // Borders
-    static let bobHairline = Color.bobHex(0xDDDBD5)
+    // MARK: – Borders / hairlines
+    static let bobHairline     = Color.bobHex(0x2A2A3A)
 
-    // Accent — sage green
-    static let bobAccent = Color.bobHex(0x588157)
-    static let bobAccentSoft = Color.bobHex(0x588157).opacity(0.12)
+    // MARK: – Accent — bright green (income / positive)
+    static let bobAccent       = Color.bobHex(0x4ADE80)
+    static let bobAccentSoft   = Color.bobHex(0x4ADE80).opacity(0.15)
 
-    // Negative — debit / over-budget
-    static let bobOverBudget = Color.bobHex(0xE0413B)
-    static let bobDebit = Color.bobHex(0xE0413B)
+    // MARK: – Negative — expense / over budget
+    static let bobOverBudget   = Color.bobHex(0xFF5252)
+    static let bobDebit        = Color.bobHex(0xFF5252)
 
-    // Dark UI surfaces — action buttons, floating tab bar
-    static let bobDark = Color.bobHex(0x0F0F0F)
-    static let bobDarkInk = Color.bobHex(0xFFFFFF)
-    static let bobDarkInk2 = Color.bobHex(0xB8B8B5)
+    // MARK: – Chart blue
+    static let bobChartBlue    = Color.bobHex(0x4F7FFF)
 
-    // Notification dot
-    static let bobNotify = Color.bobHex(0xFF6B35)
+    // MARK: – Dark UI surfaces (tab bar etc)
+    static let bobDark         = Color.bobHex(0x111120)
+    static let bobDarkInk      = Color.bobHex(0xFFFFFF)
+    static let bobDarkInk2     = Color.bobHex(0x8888A0)
 
-    // Tab bar background
-    static let bobTabBar = Color.bobHex(0xF7F5F0)
+    // MARK: – Notification dot
+    static let bobNotify       = Color.bobHex(0xFF5252)
+
+    // MARK: – Tab bar
+    static let bobTabBar       = Color.bobHex(0x111120)
 }
 
 extension Color {
-    /// Construct a Color from a 24-bit RGB hex value (e.g. 0xFBFBFA).
+    /// Construct a Color from a 24-bit RGB hex value (e.g. 0x4ADE80).
     static func bobHex(_ value: UInt32) -> Color {
         let r = Double((value >> 16) & 0xFF) / 255.0
-        let g = Double((value >> 8) & 0xFF) / 255.0
-        let b = Double(value & 0xFF) / 255.0
+        let g = Double((value >> 8)  & 0xFF) / 255.0
+        let b = Double(value & 0xFF)          / 255.0
         return Color(.sRGB, red: r, green: g, blue: b, opacity: 1)
-    }
-}
-
-// Color scheme-aware colors for dark mode support
-extension Color {
-    static var bobBackgroundAdaptive: Color {
-        Color("bobBackground", bundle: nil) ?? Color.bobHex(0xF7F5F0)
-    }
-    
-    static var bobSurfaceAdaptive: Color {
-        Color("bobSurface", bundle: nil) ?? Color.bobHex(0xFFFFFF)
-    }
-    
-    static var bobInkAdaptive: Color {
-        Color("bobInk", bundle: nil) ?? Color.bobHex(0x111110)
-    }
-    
-    static var bobInk2Adaptive: Color {
-        Color("bobInk2", bundle: nil) ?? Color.bobHex(0x4A4A47)
-    }
-    
-    static var bobInk3Adaptive: Color {
-        Color("bobInk3", bundle: nil) ?? Color.bobHex(0x9A9893)
-    }
-    
-    static var bobHairlineAdaptive: Color {
-        Color("bobHairline", bundle: nil) ?? Color.bobHex(0xDDDBD5)
     }
 }

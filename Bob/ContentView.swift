@@ -5,7 +5,6 @@ struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
 
     @State private var selectedTab: BobTab = .home
-    @State private var previousTab: BobTab = .home
     @State private var isAddingTransaction = false
 
     @Query(sort: \BudgetSettings.monthlyBudget) private var settingsList: [BudgetSettings]
@@ -13,38 +12,45 @@ struct ContentView: View {
 
     var body: some View {
         ZStack(alignment: .bottom) {
-            // Tab content with crossfade transition
+            // Tab content
             ZStack {
                 tabView(for: .home)     .opacity(selectedTab == .home      ? 1 : 0)
-                tabView(for: .goals)    .opacity(selectedTab == .goals     ? 1 : 0)
                 tabView(for: .recurring).opacity(selectedTab == .recurring  ? 1 : 0)
-                tabView(for: .analytics).opacity(selectedTab == .analytics  ? 1 : 0)
+                tabView(for: .spending) .opacity(selectedTab == .spending   ? 1 : 0)
+                tabView(for: .more)     .opacity(selectedTab == .more       ? 1 : 0)
             }
             .animation(.easeInOut(duration: 0.18), value: selectedTab)
             .ignoresSafeArea(.container, edges: .bottom)
 
-            bottomBar
-                .padding(.horizontal, 16)
-                .padding(.bottom, 8)
+            // Tab bar + FAB row
+            HStack(alignment: .bottom, spacing: 0) {
+                FloatingTabBar(selected: Binding(
+                    get: { selectedTab },
+                    set: { switchTab(to: $0) }
+                ))
+            }
         }
         .background(Color.bobBackground.ignoresSafeArea())
+        .preferredColorScheme(.dark)
         .sheet(isPresented: $isAddingTransaction) {
             AddTransactionSheet(currencyCode: currencyCode, expenseToEdit: nil)
         }
     }
 
-    // Keep all tab views alive (no state loss on switch)
     @ViewBuilder
     private func tabView(for tab: BobTab) -> some View {
         switch tab {
         case .home:
-            HomeView(onSwitchTab: { switchTab(to: $0) })
-        case .goals:
-            GoalsView()
+            HomeView(
+                onSwitchTab: { switchTab(to: $0) },
+                onAddTransaction: { isAddingTransaction = true }
+            )
         case .recurring:
             RecurringTransactionsView()
-        case .analytics:
+        case .spending:
             AnalyticsView()
+        case .more:
+            MoreView()
         }
     }
 
@@ -52,15 +58,5 @@ struct ContentView: View {
         guard tab != selectedTab else { return }
         HapticManager.selection()
         withAnimation(.easeInOut(duration: 0.18)) { selectedTab = tab }
-    }
-
-    private var bottomBar: some View {
-        HStack(alignment: .center, spacing: 10) {
-            FloatingTabBar(selected: Binding(
-                get: { selectedTab },
-                set: { switchTab(to: $0) }
-            ))
-            AddFAB { isAddingTransaction = true }
-        }
     }
 }
