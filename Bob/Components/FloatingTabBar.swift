@@ -5,10 +5,9 @@ enum BobTab: Int, CaseIterable {
     case goals
     case recurring
     case analytics
-    case activity
 }
 
-/// Floating Liquid Glass pill tab bar — three icon-only tabs.
+/// Floating Liquid Glass pill tab bar — four icon-only tabs.
 struct FloatingTabBar: View {
     @Binding var selected: BobTab
 
@@ -18,7 +17,6 @@ struct FloatingTabBar: View {
             tabButton(.goals,     systemImage: "target")
             tabButton(.recurring, systemImage: "arrow.repeat")
             tabButton(.analytics, systemImage: "chart.bar.fill")
-            tabButton(.activity,  systemImage: "waveform.path.ecg")
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
@@ -46,14 +44,13 @@ struct FloatingTabBar: View {
         }
         .buttonStyle(.plain)
     }
-    
+
     private func tabLabel(for tab: BobTab) -> String {
         switch tab {
-        case .home: return "Home"
-        case .goals: return "Savings Goals"
+        case .home:      return "Home"
+        case .goals:     return "Savings Goals"
         case .recurring: return "Recurring"
         case .analytics: return "Analytics"
-        case .activity: return "Transactions"
         }
     }
 }

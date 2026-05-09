@@ -12,6 +12,7 @@ struct AnalyticsView: View {
     @State private var selectedCategoryIndex: Int? = nil
     @State private var chartType: ChartDisplayType = .donut
     @State private var drilldownCategory: CategoryData? = nil
+    @State private var editingTransaction: Expense? = nil
 
     private var currencyCode: String { settingsList.first?.currencyCode ?? "USD" }
     private var budget: Decimal { settingsList.first?.monthlyBudget ?? 0 }
@@ -96,6 +97,15 @@ struct AnalyticsView: View {
                             if !insights.isEmpty {
                                 insightsSection.padding(.horizontal, Spacing.pageMargin)
                             }
+                            if reportKind == .expense && !topMerchants.isEmpty {
+                                topMerchantsSection.padding(.horizontal, Spacing.pageMargin)
+                            }
+                            if weekdayData.filter({ $0.amount > 0 }).count >= 3 {
+                                dayOfWeekSection.padding(.horizontal, Spacing.pageMargin)
+                            }
+                            if reportKind == .expense && !biggestTransactions.isEmpty {
+                                biggestTransactionsSection.padding(.horizontal, Spacing.pageMargin)
+                            }
                             if dailySpending.count >= 2 {
                                 trendSection.padding(.horizontal, Spacing.pageMargin)
                             }
@@ -118,6 +128,9 @@ struct AnalyticsView: View {
                     currencyCode: currencyCode
                 )
             }
+        }
+        .sheet(item: $editingTransaction) { tx in
+            AddTransactionSheet(currencyCode: currencyCode, expenseToEdit: tx)
         }
         .onChange(of: reportKind)     { _, _ in withAnimation { selectedCategoryIndex = nil } }
         .onChange(of: selectedPeriod) { _, _ in withAnimation { selectedCategoryIndex = nil } }
@@ -585,6 +598,146 @@ struct AnalyticsView: View {
         .padding(Spacing.m)
         .background(Color.bobSurface)
         .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+
+    // MARK: – Top Merchants
+
+    private var topMerchants: [(name: String, amount: Decimal, count: Int)] {
+        var dict: [String: (Decimal, Int)] = [:]
+        for tx in filteredTransactions {
+            let key = tx.merchant?.isEmpty == false ? tx.merchant! : tx.category?.name ?? "Other"
+            let current = dict[key] ?? (0, 0)
+            dict[key] = (current.0 + tx.amount, current.1 + 1)
+        }
+        return dict.map { (name: $0.key, amount: $0.value.0, count: $0.value.1) }
+            .sorted { $0.amount > $1.amount }
+            .prefix(5).map { $0 }
+    }
+
+    private var topMerchantsSection: some View {
+        let maxAmount = topMerchants.first?.amount ?? 1
+        return VStack(alignment: .leading, spacing: Spacing.m) {
+            Text("Top Merchants").font(.system(size: 16, weight: .semibold)).foregroundStyle(Color.bobInk)
+            VStack(spacing: 12) {
+                ForEach(Array(topMerchants.enumerated()), id: \.element.name) { idx, m in
+                    VStack(spacing: 5) {
+                        HStack {
+                            Text(m.name).font(.system(size: 14, weight: .semibold)).foregroundStyle(Color.bobInk).lineLimit(1)
+                            Spacer()
+                            Text(CurrencyFormatter.string(m.amount, code: currencyCode))
+                                .font(.system(size: 14, weight: .semibold)).monospacedDigit().foregroundStyle(Color.bobInk)
+                            Text("·  \(m.count)x").font(.system(size: 12)).foregroundStyle(Color.bobInk3)
+                        }
+                        GeometryReader { geo in
+                            ZStack(alignment: .leading) {
+                                RoundedRectangle(cornerRadius: 3).fill(Color.bobHairline).frame(height: 5)
+                                RoundedRectangle(cornerRadius: 3)
+                                    .fill(chartPaletteColor(for: idx))
+                                    .frame(width: geo.size.width * CGFloat(Double((m.amount / maxAmount) as NSDecimalNumber)), height: 5)
+                            }
+                        }.frame(height: 5)
+                    }
+                }
+            }
+        }
+        .padding(Spacing.m)
+        .background(Color.bobSurface)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+
+    // MARK: – Day of Week
+
+    private var weekdayData: [(label: String, amount: Decimal)] {
+        let symbols = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+        var totals = [Int: Decimal]()
+        let cal = Calendar.current
+        for tx in filteredTransactions {
+            // weekday: 1=Sunday, 2=Monday … 7=Saturday → convert to 0=Mon…6=Sun
+            let raw = cal.component(.weekday, from: tx.date)
+            let idx = (raw + 5) % 7
+            totals[idx, default: 0] += tx.amount
+        }
+        return (0..<7).map { (label: symbols[$0], amount: totals[$0] ?? 0) }
+    }
+
+    private var dayOfWeekSection: some View {
+        let peak = weekdayData.map { $0.amount }.max() ?? 1
+        let maxIdx = weekdayData.firstIndex(where: { $0.amount == peak }) ?? 0
+        return VStack(alignment: .leading, spacing: Spacing.m) {
+            Text("When do you spend most?")
+                .font(.system(size: 16, weight: .semibold)).foregroundStyle(Color.bobInk)
+            HStack(alignment: .bottom, spacing: 0) {
+                ForEach(Array(weekdayData.enumerated()), id: \.offset) { idx, day in
+                    VStack(spacing: 4) {
+                        let barH = peak > 0 ? CGFloat(Double((day.amount / peak) as NSDecimalNumber)) * 72 : 4
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(idx == maxIdx ? Color.bobDebit : Color.bobAccent.opacity(0.5))
+                            .frame(height: Swift.max(barH, 4))
+                        Text(day.label)
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(idx == maxIdx ? Color.bobDebit : Color.bobInk3)
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+            }
+            .frame(height: 90)
+            HStack {
+                Text("Highest: \(weekdayData[maxIdx].label) · \(CurrencyFormatter.string(weekdayData[maxIdx].amount, code: currencyCode))")
+                    .font(.system(size: 12)).foregroundStyle(Color.bobDebit)
+                Spacer()
+            }
+        }
+        .padding(Spacing.m)
+        .background(Color.bobSurface)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+
+    // MARK: – Biggest Transactions
+
+    private var biggestTransactions: [Expense] {
+        filteredTransactions.sorted { $0.amount > $1.amount }.prefix(5).map { $0 }
+    }
+
+    private var biggestTransactionsSection: some View {
+        VStack(alignment: .leading, spacing: Spacing.m) {
+            Text("Biggest Expenses")
+                .font(.system(size: 16, weight: .semibold)).foregroundStyle(Color.bobInk)
+            VStack(spacing: 0) {
+                ForEach(Array(biggestTransactions.enumerated()), id: \.element.id) { idx, tx in
+                    Button { editingTransaction = tx } label: {
+                        HStack(spacing: 12) {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 8).fill(Color.bobDebit.opacity(0.1)).frame(width: 36, height: 36)
+                                Image(systemName: tx.category?.sfSymbol ?? "circle.dashed")
+                                    .font(.system(size: 14, weight: .medium)).foregroundStyle(Color.bobDebit)
+                            }
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(tx.merchant?.isEmpty == false ? tx.merchant! : tx.category?.name ?? "Expense")
+                                    .font(.system(size: 14, weight: .semibold)).foregroundStyle(Color.bobInk).lineLimit(1)
+                                Text(shortDate(tx.date))
+                                    .font(.system(size: 12)).foregroundStyle(Color.bobInk3)
+                            }
+                            Spacer()
+                            Text(CurrencyFormatter.string(tx.amount, code: currencyCode))
+                                .font(.system(size: 15, weight: .bold)).monospacedDigit().foregroundStyle(Color.bobDebit)
+                        }
+                        .padding(.vertical, 10)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    if idx < biggestTransactions.count - 1 {
+                        Divider().padding(.leading, 48)
+                    }
+                }
+            }
+        }
+        .padding(Spacing.m)
+        .background(Color.bobSurface)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+
+    private func shortDate(_ date: Date) -> String {
+        let f = DateFormatter(); f.dateFormat = "MMM d"; return f.string(from: date)
     }
 
     // MARK: – Empty state

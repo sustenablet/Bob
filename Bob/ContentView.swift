@@ -19,7 +19,6 @@ struct ContentView: View {
                 tabView(for: .goals)    .opacity(selectedTab == .goals     ? 1 : 0)
                 tabView(for: .recurring).opacity(selectedTab == .recurring  ? 1 : 0)
                 tabView(for: .analytics).opacity(selectedTab == .analytics  ? 1 : 0)
-                tabView(for: .activity) .opacity(selectedTab == .activity   ? 1 : 0)
             }
             .animation(.easeInOut(duration: 0.18), value: selectedTab)
             .ignoresSafeArea(.container, edges: .bottom)
@@ -46,8 +45,6 @@ struct ContentView: View {
             RecurringTransactionsView()
         case .analytics:
             AnalyticsView()
-        case .activity:
-            NavigationStack { TransactionsListView() }
         }
     }
 

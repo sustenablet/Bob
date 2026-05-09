@@ -144,6 +144,66 @@ struct HomeView: View {
             .prefix(2).map { $0 }
     }
 
+    // Today's transactions
+    private var todaysTransactions: [Expense] {
+        allExpenses.filter { Calendar.current.isDateInToday($0.date) }
+    }
+    private var todayIncome: Decimal { todaysTransactions.filter { $0.kind == .income }.reduce(.zero) { $0 + $1.amount } }
+    private var todayExpenses: Decimal { todaysTransactions.filter { $0.kind == .expense }.reduce(.zero) { $0 + $1.amount } }
+
+    // Quick stats
+    private var dayOfMonth: Int { Calendar.current.component(.day, from: Date()) }
+    private var dailyAvg: Decimal {
+        guard dayOfMonth > 0, monthExpensesTotal > 0 else { return 0 }
+        return monthExpensesTotal / Decimal(dayOfMonth)
+    }
+    private var savingsRate: Double {
+        let inc = (monthIncome as NSDecimalNumber).doubleValue
+        let exp = (monthExpensesTotal as NSDecimalNumber).doubleValue
+        guard inc > 0 else { return 0 }
+        return ((inc - exp) / inc) * 100
+    }
+
+    // Cumulative daily spend this month for mini chart
+    private var cumulativeDailySpend: [(day: Int, amount: Decimal)] {
+        let cal = Calendar.current
+        var dict: [Int: Decimal] = [:]
+        for tx in monthExpenses {
+            let d = cal.component(.day, from: tx.date)
+            dict[d, default: 0] += tx.amount
+        }
+        var cum: Decimal = 0
+        let days = cal.range(of: .day, in: .month, for: selectedMonthDate)?.count ?? 30
+        return (1...days).map { day in
+            cum += dict[day] ?? 0
+            return (day: day, amount: cum)
+        }
+    }
+
+    // Auto-generated insight
+    private var homeInsight: (icon: String, text: String, color: Color)? {
+        if monthlyBudget > 0 && monthExpensesTotal > monthlyBudget {
+            let over = monthExpensesTotal - monthlyBudget
+            return ("exclamationmark.circle.fill",
+                    "Over budget by \(CurrencyFormatter.string(over, code: currencyCode)) this month",
+                    Color.bobDebit)
+        }
+        if let change = monthOverMonthExpenseChange, change > 20 {
+            return ("arrow.up.right.circle.fill",
+                    String(format: "Spending up %.0f%% vs last month", change),
+                    Color.bobHex(0xF59E0B))
+        }
+        if monthlyBudget > 0 && budgetRemaining > 0 {
+            return ("checkmark.circle.fill",
+                    "\(CurrencyFormatter.string(budgetRemaining, code: currencyCode)) left in your budget",
+                    Color.bobAccent)
+        }
+        if streak >= 5 {
+            return ("flame.fill", "\(streak)-day logging streak — keep it up!", Color.bobHex(0xFF6B35))
+        }
+        return nil
+    }
+
     private var filteredRecords: [Expense] {
         switch recordsFilter {
         case .thisMonth: return monthTransactions
@@ -169,6 +229,20 @@ struct HomeView: View {
 
                         overviewCard
                             .padding(.horizontal, Spacing.pageMargin)
+
+                        todayCard
+                            .padding(.horizontal, Spacing.pageMargin)
+                            .padding(.top, Spacing.m)
+
+                        quickStatsRow
+                            .padding(.horizontal, Spacing.pageMargin)
+                            .padding(.top, Spacing.m)
+
+                        if selectedMonthOffset == 0 && monthlyBudget > 0 && !cumulativeDailySpend.isEmpty {
+                            miniSpendingChart
+                                .padding(.horizontal, Spacing.pageMargin)
+                                .padding(.top, Spacing.m)
+                        }
 
                         if !topCategories.isEmpty {
                             topCategoriesStrip
@@ -599,6 +673,18 @@ struct HomeView: View {
                 }.buttonStyle(.plain)
             }
 
+            // Contextual insight chip
+            if let insight = homeInsight {
+                HStack(spacing: 8) {
+                    Image(systemName: insight.icon).font(.system(size: 13)).foregroundStyle(insight.color)
+                    Text(insight.text).font(.system(size: 13)).foregroundStyle(Color.bobInk).lineLimit(2)
+                    Spacer()
+                }
+                .padding(.horizontal, Spacing.s).padding(.vertical, 10)
+                .background(insight.color.opacity(0.08))
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+            }
+
             // Segmented tabs
             HStack(spacing: 0) {
                 segmentTab("This Month", selected: recordsFilter == .thisMonth) {
@@ -693,6 +779,174 @@ struct HomeView: View {
         .background(Color.bobSurface)
         .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Color.bobHairline, lineWidth: 1))
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+
+    // MARK: – Today card
+
+    private var todayCard: some View {
+        let hour = Calendar.current.component(.hour, from: Date())
+        let hasTodayData = !todaysTransactions.isEmpty
+        let showCard = hasTodayData || hour >= 12
+
+        return Group {
+            if showCard {
+                VStack(spacing: 10) {
+                    HStack {
+                        Text("Today")
+                            .font(.system(size: 15, weight: .semibold)).foregroundStyle(Color.bobInk)
+                        Spacer()
+                        Text(hasTodayData ? "\(todaysTransactions.count) items" : "No activity yet")
+                            .font(.system(size: 12)).foregroundStyle(Color.bobInk3)
+                    }
+                    if hasTodayData {
+                        HStack(spacing: 0) {
+                            statColumn(icon: "arrow.down.circle.fill", iconColor: .bobAccent,
+                                       label: "In", value: CurrencyFormatter.string(todayIncome, code: currencyCode))
+                            Divider().frame(height: 36).padding(.horizontal, Spacing.m)
+                            statColumn(icon: "arrow.up.circle.fill", iconColor: .bobDebit,
+                                       label: "Out", value: CurrencyFormatter.string(todayExpenses, code: currencyCode))
+                            Spacer()
+                        }
+                        if let last = todaysTransactions.first {
+                            HStack(spacing: 8) {
+                                Image(systemName: last.category?.sfSymbol ?? "circle.dashed")
+                                    .font(.system(size: 12)).foregroundStyle(Color.bobInk3)
+                                Text(displayTitle(for: last))
+                                    .font(.system(size: 12)).foregroundStyle(Color.bobInk2).lineLimit(1)
+                                Spacer()
+                                Text(CurrencyFormatter.string(last.amount, code: currencyCode))
+                                    .font(.system(size: 12, weight: .semibold)).monospacedDigit()
+                                    .foregroundStyle(last.kind == .income ? Color.bobAccent : Color.bobDebit)
+                            }
+                        }
+                    } else {
+                        Text("Tap + to log a transaction")
+                            .font(.system(size: 13)).foregroundStyle(Color.bobInk3)
+                    }
+                }
+                .padding(Spacing.m)
+                .background(Color.bobSurface)
+                .clipShape(RoundedRectangle(cornerRadius: 14))
+                .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.bobHairline, lineWidth: 1))
+            }
+        }
+    }
+
+    // MARK: – Quick stats row
+
+    private var quickStatsRow: some View {
+        HStack(spacing: Spacing.s) {
+            quickStatTile(
+                label: "Daily avg",
+                value: dailyAvg > 0 ? CurrencyFormatter.compact(dailyAvg, code: currencyCode) : "—",
+                icon: "calendar",
+                color: .bobInk2
+            )
+            quickStatTile(
+                label: "Savings rate",
+                value: monthIncome > 0 ? String(format: "%.0f%%", savingsRate) : "—",
+                icon: savingsRate >= 0 ? "arrow.up.right" : "arrow.down.right",
+                color: savingsRate >= 0 ? .bobAccent : .bobDebit
+            )
+            quickStatTile(
+                label: "Streak",
+                value: streak > 0 ? "\(streak)d" : "—",
+                icon: "flame.fill",
+                color: streak >= 5 ? Color.bobHex(0xFF6B35) : .bobInk3
+            )
+        }
+    }
+
+    private func quickStatTile(label: String, value: String, icon: String, color: Color) -> some View {
+        VStack(spacing: 6) {
+            Image(systemName: icon).font(.system(size: 16)).foregroundStyle(color)
+            Text(value).font(.system(size: 15, weight: .bold)).foregroundStyle(Color.bobInk).lineLimit(1).minimumScaleFactor(0.7)
+            Text(label).font(.system(size: 11)).foregroundStyle(Color.bobInk2)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 14)
+        .background(Color.bobSurface)
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.bobHairline, lineWidth: 1))
+    }
+
+    // MARK: – Mini spending chart
+
+    private var miniSpendingChart: some View {
+        let cal = Calendar.current
+        let daysInMonth = cal.range(of: .day, in: .month, for: selectedMonthDate)?.count ?? 30
+        let data = cumulativeDailySpend
+        let maxY = max((monthlyBudget as NSDecimalNumber).doubleValue * 1.1,
+                       data.map { ($0.amount as NSDecimalNumber).doubleValue }.max() ?? 100)
+        let budgetY = (monthlyBudget as NSDecimalNumber).doubleValue
+
+        return VStack(alignment: .leading, spacing: Spacing.s) {
+            Text("Spending this month")
+                .font(.system(size: 14, weight: .semibold)).foregroundStyle(Color.bobInk)
+
+            GeometryReader { geo in
+                let w = geo.size.width
+                let h = geo.size.height
+
+                ZStack(alignment: .topLeading) {
+                    // Budget dashed line
+                    let budgetFrac = budgetY / maxY
+                    Path { p in
+                        let y = h - CGFloat(budgetFrac) * h
+                        p.move(to: CGPoint(x: 0, y: y))
+                        p.addLine(to: CGPoint(x: w, y: y))
+                    }
+                    .stroke(Color.bobDebit.opacity(0.4), style: StrokeStyle(lineWidth: 1, dash: [4, 3]))
+
+                    // Spending area fill
+                    spendingAreaPath(data: data, w: w, h: h, maxY: maxY, daysInMonth: daysInMonth)
+                        .fill(LinearGradient(colors: [Color.bobAccent.opacity(0.2), .clear], startPoint: .top, endPoint: .bottom))
+
+                    // Spending line
+                    spendingLinePath(data: data, w: w, h: h, maxY: maxY, daysInMonth: daysInMonth)
+                        .stroke(Color.bobAccent, style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+                }
+            }
+            .frame(height: 70)
+
+            HStack {
+                Text("1").font(.system(size: 10)).foregroundStyle(Color.bobInk3)
+                Spacer()
+                Text("\(daysInMonth / 2)").font(.system(size: 10)).foregroundStyle(Color.bobInk3)
+                Spacer()
+                Text("\(daysInMonth)").font(.system(size: 10)).foregroundStyle(Color.bobInk3)
+            }
+        }
+        .padding(Spacing.m)
+        .background(Color.bobSurface)
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.bobHairline, lineWidth: 1))
+    }
+
+    private func spendingLinePath(data: [(day: Int, amount: Decimal)], w: CGFloat, h: CGFloat, maxY: Double, daysInMonth: Int) -> Path {
+        var path = Path()
+        for (i, point) in data.enumerated() {
+            let x = CGFloat(point.day - 1) / CGFloat(daysInMonth - 1) * w
+            let y = h - CGFloat((point.amount as NSDecimalNumber).doubleValue / maxY) * h
+            i == 0 ? path.move(to: CGPoint(x: x, y: y)) : path.addLine(to: CGPoint(x: x, y: y))
+        }
+        return path
+    }
+
+    private func spendingAreaPath(data: [(day: Int, amount: Decimal)], w: CGFloat, h: CGFloat, maxY: Double, daysInMonth: Int) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: 0, y: h))
+        for point in data {
+            let x = CGFloat(point.day - 1) / CGFloat(daysInMonth - 1) * w
+            let y = h - CGFloat((point.amount as NSDecimalNumber).doubleValue / maxY) * h
+            path.addLine(to: CGPoint(x: x, y: y))
+        }
+        if let last = data.last {
+            let x = CGFloat(last.day - 1) / CGFloat(daysInMonth - 1) * w
+            path.addLine(to: CGPoint(x: x, y: h))
+        }
+        path.closeSubpath()
+        return path
     }
 
     // MARK: – Helpers
