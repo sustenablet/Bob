@@ -96,12 +96,7 @@ struct RecurringTransactionsView: View {
 
     private var topBar: some View {
         HStack {
-            Button { } label: {
-                Image(systemName: "gearshape")
-                    .font(.system(size: 20))
-                    .foregroundStyle(Color.bobInk2)
-                    .frame(width: 36, height: 36)
-            }.buttonStyle(.plain)
+            Color.clear.frame(width: 36, height: 36)
 
             Spacer()
             Text("Recurring").font(.system(size: 18, weight: .semibold)).foregroundStyle(Color.bobInk)

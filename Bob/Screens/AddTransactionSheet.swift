@@ -19,34 +19,32 @@ struct AddTransactionSheet: View {
     @State private var note: String = ""
     @State private var merchant: String = ""
     @State private var showDatePicker = false
-    @State private var showNoteField = false
-    @State private var showMerchantField = false
+    @FocusState private var noteFieldFocused: Bool
+    @FocusState private var merchantFieldFocused: Bool
 
     var isEditing: Bool { expenseToEdit != nil }
     var canSave: Bool { amount > 0 }
 
     private var visibleCategories: [ExpenseCategory] { allCategories.filter { $0.kind == kind } }
     private var filteredTemplates: [QuickAddTemplate] { quickTemplates.filter { $0.kind == kind } }
-
-    private var accentColor: Color { kind == .income ? .bobAccent : .bobDebit }
-    private var accentLabel: String { kind == .income ? "Add Income" : "Add Expense" }
-
-    // MARK: – Body
+    private var accentColor: Color { kind == .income ? Color.bobGreen : Color.bobAccent }
+    private var saveLabel: String {
+        if isEditing { return "Save Changes" }
+        return kind == .income ? "Add Income" : "Add Expense"
+    }
 
     var body: some View {
         VStack(spacing: 0) {
             dragHandle
             kindToggle.padding(.horizontal, Spacing.pageMargin).padding(.top, Spacing.s)
-            amountSection.padding(.horizontal, Spacing.pageMargin).padding(.top, Spacing.m)
-            categoryGrid.padding(.top, Spacing.m)
+            amountDisplay.padding(.horizontal, Spacing.pageMargin).padding(.top, Spacing.m)
 
             if !filteredTemplates.isEmpty {
-                templatesRow.padding(.top, Spacing.xs)
+                templatesRow.padding(.top, Spacing.s)
             }
 
-            fieldsRow.padding(.horizontal, Spacing.pageMargin).padding(.top, Spacing.s)
-
-            Spacer(minLength: 0)
+            categoryGrid.padding(.top, Spacing.m)
+            detailsSection.padding(.horizontal, Spacing.pageMargin).padding(.top, Spacing.m)
 
             saveButton.padding(.horizontal, Spacing.pageMargin).padding(.top, Spacing.s)
             HairlineDivider().padding(.top, Spacing.s)
@@ -64,25 +62,18 @@ struct AddTransactionSheet: View {
     private var dragHandle: some View {
         VStack(spacing: 0) {
             RoundedRectangle(cornerRadius: 2)
-                .fill(Color.bobHairline)
+                .fill(Color.bobSurface3)
                 .frame(width: 36, height: 4)
                 .padding(.top, 10)
-            if isEditing {
-                Text("Edit transaction")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(Color.bobInk)
-                    .padding(.top, 12)
-            }
         }
         .frame(maxWidth: .infinity)
         .overlay(alignment: .topTrailing) {
             Button("Cancel") { dismiss() }
                 .font(.system(size: 15))
                 .foregroundStyle(Color.bobInk2)
-                .padding(.top, 8)
-                .padding(.trailing, Spacing.pageMargin)
+                .padding(.top, 8).padding(.trailing, Spacing.pageMargin)
         }
-        .padding(.bottom, isEditing ? 4 : 0)
+        .padding(.bottom, Spacing.xs)
     }
 
     // MARK: – Kind toggle
@@ -97,21 +88,14 @@ struct AddTransactionSheet: View {
                     HStack(spacing: 6) {
                         Image(systemName: option == .income ? "arrow.down.left" : "arrow.up.right")
                             .font(.system(size: 11, weight: .bold))
-                        Text(option.label)
-                            .font(.system(size: 14, weight: .semibold))
+                        Text(option.label).font(.system(size: 14, weight: .semibold))
                     }
                     .foregroundStyle(kind == option ? .white : Color.bobInk2)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 10)
-                    .background(
-                        Capsule().fill(
-                            kind == option
-                                ? (option == .income ? Color.bobAccent : Color.bobDebit)
-                                : Color.clear
-                        )
-                    )
-                }
-                .buttonStyle(.plain)
+                    .frame(maxWidth: .infinity).padding(.vertical, 10)
+                    .background(Capsule().fill(kind == option
+                        ? (option == .income ? Color.bobGreen : Color.bobAccent)
+                        : Color.clear))
+                }.buttonStyle(.plain)
             }
         }
         .padding(3)
@@ -121,17 +105,41 @@ struct AddTransactionSheet: View {
 
     // MARK: – Amount display
 
-    private var amountSection: some View {
+    private var amountDisplay: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(kind == .income ? "Amount received" : "Amount spent")
-                .eyebrow()
+            Text(kind == .income ? "Amount received" : "Amount spent").eyebrow()
             BigAmountView(
-                amount: amount,
-                currencyCode: currencyCode,
-                size: 52,
+                amount: amount, currencyCode: currencyCode, size: 48,
                 tint: amount > 0 ? accentColor : Color.bobInk2
             )
         }
+    }
+
+    // MARK: – Quick templates
+
+    private var templatesRow: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(filteredTemplates) { t in
+                    Button { applyTemplate(t) } label: {
+                        HStack(spacing: 4) {
+                            Text(t.name).font(.system(size: 12, weight: .medium))
+                            Text(CurrencyFormatter.string(t.amount, code: currencyCode))
+                                .font(.system(size: 11)).foregroundStyle(Color.bobInk2)
+                        }
+                        .foregroundStyle(Color.bobInk)
+                        .padding(.horizontal, 12).padding(.vertical, 7)
+                        .background(Color.bobSurface)
+                        .clipShape(Capsule())
+                        .overlay(Capsule().stroke(Color.bobHairline, lineWidth: 1))
+                    }.buttonStyle(.plain)
+                }
+            }.padding(.horizontal, Spacing.pageMargin)
+        }
+    }
+
+    private func applyTemplate(_ t: QuickAddTemplate) {
+        amount = t.amount; selectedCategory = t.category; HapticManager.light()
     }
 
     // MARK: – Category grid
@@ -152,191 +160,115 @@ struct AddTransactionSheet: View {
             selectedCategory = cat
             UIImpactFeedbackGenerator(style: .light).impactOccurred()
         } label: {
-            VStack(spacing: 6) {
+            VStack(spacing: 5) {
                 ZStack {
                     Circle()
                         .fill(isSelected ? accentColor : Color.bobSurface)
-                        .frame(width: 50, height: 50)
+                        .frame(width: 48, height: 48)
                     Circle()
                         .stroke(isSelected ? accentColor : Color.bobHairline, lineWidth: 1)
-                        .frame(width: 50, height: 50)
+                        .frame(width: 48, height: 48)
                     Image(systemName: cat.sfSymbol)
-                        .font(.system(size: 18, weight: .medium))
+                        .font(.system(size: 17, weight: .medium))
                         .foregroundStyle(isSelected ? .white : Color.bobInk2)
                 }
                 Text(cat.name)
-                    .font(.system(size: 11, weight: isSelected ? .semibold : .regular))
+                    .font(.system(size: 10, weight: isSelected ? .semibold : .regular))
                     .foregroundStyle(isSelected ? accentColor : Color.bobInk2)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
+                    .lineLimit(1).minimumScaleFactor(0.7)
             }
-            .padding(.vertical, 10)
+            .padding(.vertical, 9)
             .frame(maxWidth: .infinity)
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(isSelected ? accentColor.opacity(0.08) : Color.clear)
-                    .padding(4)
-            )
         }
         .buttonStyle(.plain)
-        .animation(.easeOut(duration: 0.15), value: selectedCategory?.id)
+        .animation(.easeOut(duration: 0.12), value: selectedCategory?.id)
     }
 
-    // MARK: – Quick templates
+    // MARK: – Details section (always visible, no expanding)
 
-    private var templatesRow: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(filteredTemplates) { t in
-                    Button { applyTemplate(t) } label: {
-                        HStack(spacing: 4) {
-                            Text(t.name)
-                                .font(.system(size: 12, weight: .medium))
-                            Text(CurrencyFormatter.string(t.amount, code: currencyCode))
-                                .font(.system(size: 11))
-                                .foregroundStyle(Color.bobInk2)
-                        }
-                        .foregroundStyle(Color.bobInk)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 7)
-                        .background(Color.bobSurface)
-                        .clipShape(Capsule())
-                        .overlay(Capsule().stroke(Color.bobHairline, lineWidth: 1))
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding(.horizontal, Spacing.pageMargin)
-        }
-    }
-
-    private func applyTemplate(_ t: QuickAddTemplate) {
-        amount = t.amount
-        selectedCategory = t.category
-        HapticManager.light()
-    }
-
-    // MARK: – Fields row
-
-    private var fieldsRow: some View {
+    private var detailsSection: some View {
         VStack(spacing: 0) {
-            // Date chip + optional date picker
-            HStack(spacing: Spacing.s) {
-                fieldChip(icon: "calendar", label: dateLabel) {
-                    withAnimation(.easeInOut(duration: 0.2)) { showDatePicker.toggle() }
-                }
-
-                fieldChip(icon: "pencil", label: note.isEmpty ? "Note" : note) {
-                    showNoteField.toggle()
-                }
-
-                fieldChip(
-                    icon: kind == .income ? "person.fill" : "storefront",
-                    label: merchant.isEmpty ? (kind == .income ? "Source" : "Merchant") : merchant
-                ) {
-                    showMerchantField.toggle()
-                }
-            }
-
-            if showDatePicker {
+            // Date row — compact date picker (no layout shift)
+            HStack(spacing: 12) {
+                Image(systemName: "calendar")
+                    .font(.system(size: 15)).foregroundStyle(Color.bobInk2).frame(width: 20)
+                Text("Date").font(.system(size: 14)).foregroundStyle(Color.bobInk2)
+                Spacer()
                 DatePicker("", selection: $date, displayedComponents: [.date])
-                    .datePickerStyle(.graphical)
+                    .datePickerStyle(.compact)
+                    .labelsHidden()
                     .tint(accentColor)
-                    .padding(.top, 4)
+                    .colorScheme(.dark)
             }
+            .padding(.horizontal, Spacing.m)
+            .padding(.vertical, 13)
 
-            if showNoteField {
-                TextField("Add a note…", text: $note)
-                    .font(.bobBody)
+            Divider().background(Color.bobHairline).padding(.leading, 52)
+
+            // Merchant / Source row
+            HStack(spacing: 12) {
+                Image(systemName: kind == .income ? "person.fill" : "storefront")
+                    .font(.system(size: 15)).foregroundStyle(Color.bobInk2).frame(width: 20)
+                TextField(kind == .income ? "Source (optional)" : "Merchant (optional)", text: $merchant)
+                    .font(.system(size: 14))
                     .foregroundStyle(Color.bobInk)
-                    .padding(.horizontal, Spacing.m)
-                    .padding(.vertical, Spacing.s)
-                    .background(Color.bobSurface)
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
-                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.bobHairline, lineWidth: 1))
-                    .padding(.top, 8)
-                    .submitLabel(.done)
-                    .onSubmit { showNoteField = false }
+                    .focused($merchantFieldFocused)
+                    .submitLabel(.next)
+                    .onSubmit { noteFieldFocused = true }
             }
+            .padding(.horizontal, Spacing.m)
+            .padding(.vertical, 13)
 
-            if showMerchantField {
-                TextField(kind == .income ? "Source…" : "Merchant…", text: $merchant)
-                    .font(.bobBody)
+            Divider().background(Color.bobHairline).padding(.leading, 52)
+
+            // Note row
+            HStack(spacing: 12) {
+                Image(systemName: "pencil")
+                    .font(.system(size: 15)).foregroundStyle(Color.bobInk2).frame(width: 20)
+                TextField("Add a note (optional)", text: $note)
+                    .font(.system(size: 14))
                     .foregroundStyle(Color.bobInk)
-                    .padding(.horizontal, Spacing.m)
-                    .padding(.vertical, Spacing.s)
-                    .background(Color.bobSurface)
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
-                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.bobHairline, lineWidth: 1))
-                    .padding(.top, 8)
+                    .focused($noteFieldFocused)
                     .submitLabel(.done)
-                    .onSubmit { showMerchantField = false }
+                    .onSubmit { noteFieldFocused = false }
             }
+            .padding(.horizontal, Spacing.m)
+            .padding(.vertical, 13)
         }
-    }
-
-    private func fieldChip(icon: String, label: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: 5) {
-                Image(systemName: icon)
-                    .font(.system(size: 11, weight: .medium))
-                Text(label)
-                    .font(.system(size: 12, weight: .medium))
-                    .lineLimit(1)
-            }
-            .foregroundStyle(Color.bobInk2)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 7)
-            .background(Color.bobSurface)
-            .clipShape(Capsule())
-            .overlay(Capsule().stroke(Color.bobHairline, lineWidth: 1))
-        }
-        .buttonStyle(.plain)
+        .background(Color.bobSurface)
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.bobHairline, lineWidth: 1))
     }
 
     // MARK: – Save button
 
     private var saveButton: some View {
         Button { save() } label: {
-            Text(isEditing ? "Save changes" : accentLabel)
+            Text(saveLabel)
                 .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(canSave ? .white : Color.bobInk3)
+                .foregroundStyle(canSave ? .white : Color.bobInk2)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 16)
                 .background(canSave ? accentColor : Color.bobSurface)
                 .clipShape(Capsule())
-                .overlay(
-                    Capsule().stroke(canSave ? Color.clear : Color.bobHairline, lineWidth: 1)
-                )
+                .overlay(Capsule().stroke(canSave ? Color.clear : Color.bobHairline, lineWidth: 1))
         }
         .disabled(!canSave)
         .animation(.easeOut(duration: 0.15), value: canSave)
-        .animation(.easeOut(duration: 0.15), value: kind)
     }
 
     // MARK: – Helpers
 
-    private var dateLabel: String {
-        let cal = Calendar.current
-        if cal.isDateInToday(date) { return "Today" }
-        if cal.isDateInYesterday(date) { return "Yesterday" }
-        let f = DateFormatter(); f.dateFormat = "d MMM"
-        return f.string(from: date)
-    }
-
     private func hydrate() {
-        if let expense = expenseToEdit {
-            kind      = expense.kind
-            amount    = expense.amount
-            date      = expense.date
-            note      = expense.note ?? ""
-            merchant  = expense.merchant ?? ""
-            selectedCategory = expense.category
-            if !note.isEmpty     { showNoteField = true }
-            if !merchant.isEmpty { showMerchantField = true }
-        } else {
-            selectedCategory = visibleCategories.first
+        guard let expense = expenseToEdit else {
+            selectedCategory = visibleCategories.first; return
         }
+        kind = expense.kind
+        amount = expense.amount
+        date = expense.date
+        note = expense.note ?? ""
+        merchant = expense.merchant ?? ""
+        selectedCategory = expense.category
     }
 
     private func save() {
@@ -346,20 +278,16 @@ struct AddTransactionSheet: View {
         let trimMerchant = merchant.trimmingCharacters(in: .whitespacesAndNewlines)
 
         if let expense = expenseToEdit {
-            expense.amount   = amount
-            expense.date     = date
-            expense.note     = trimNote.isEmpty ? nil : trimNote
+            expense.amount = amount; expense.date = date
+            expense.note = trimNote.isEmpty ? nil : trimNote
             expense.merchant = trimMerchant.isEmpty ? nil : trimMerchant
-            expense.category = selectedCategory
-            expense.kind     = kind
+            expense.category = selectedCategory; expense.kind = kind
         } else {
             modelContext.insert(Expense(
-                amount:   amount,
-                date:     date,
-                note:     trimNote.isEmpty ? nil : trimNote,
+                amount: amount, date: date,
+                note: trimNote.isEmpty ? nil : trimNote,
                 merchant: trimMerchant.isEmpty ? nil : trimMerchant,
-                category: selectedCategory,
-                kind:     kind
+                category: selectedCategory, kind: kind
             ))
         }
         try? modelContext.save()

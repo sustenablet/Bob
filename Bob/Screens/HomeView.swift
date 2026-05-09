@@ -95,8 +95,7 @@ struct HomeView: View {
                         .padding(.horizontal, Spacing.pageMargin)
                         .padding(.top, 12)
 
-                    heroCard
-                        .padding(.horizontal, Spacing.pageMargin)
+                    heroCarousel
                         .padding(.top, Spacing.m)
 
                     if !upcomingItems.isEmpty {
@@ -160,6 +159,139 @@ struct HomeView: View {
         let f = DateFormatter()
         f.dateFormat = "EEE, MMM d"
         return f.string(from: Date())
+    }
+
+    // MARK: – Hero carousel (swipeable cards)
+
+    @State private var heroPage: Int = 0
+
+    private var heroCarousel: some View {
+        VStack(spacing: 8) {
+            TabView(selection: $heroPage) {
+                heroCard
+                    .padding(.horizontal, Spacing.pageMargin)
+                    .tag(0)
+                budgetCard
+                    .padding(.horizontal, Spacing.pageMargin)
+                    .tag(1)
+                savingsCard
+                    .padding(.horizontal, Spacing.pageMargin)
+                    .tag(2)
+            }
+            .tabViewStyle(.page(indexDisplayMode: .never))
+            .frame(height: 220)
+
+            // Page dots
+            HStack(spacing: 6) {
+                ForEach(0..<3, id: \.self) { idx in
+                    Capsule()
+                        .fill(heroPage == idx ? Color.bobAccent : Color.bobSurface2)
+                        .frame(width: heroPage == idx ? 18 : 6, height: 6)
+                        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: heroPage)
+                }
+            }
+        }
+    }
+
+    // Card 2: Budget status
+    private var budgetCard: some View {
+        VStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Text("Budget Status").font(.system(size: 13)).foregroundStyle(Color.bobInk2)
+                    Spacer()
+                    if monthlyBudget > 0 {
+                        let remaining = monthlyBudget - monthExpensesTotal
+                        Text(remaining >= 0 ? "\(CurrencyFormatter.string(remaining, code: currencyCode)) left" : "Over budget")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(remaining >= 0 ? Color.bobGreen : Color.bobDebit)
+                    }
+                }
+                if monthlyBudget > 0 {
+                    let prog = min(Double((monthExpensesTotal / monthlyBudget) as NSDecimalNumber), 1.0)
+                    let color: Color = prog >= 1.0 ? .bobDebit : prog >= 0.8 ? .orange : .bobGreen
+                    GeometryReader { geo in
+                        ZStack(alignment: .leading) {
+                            RoundedRectangle(cornerRadius: 6).fill(Color.bobSurface2).frame(height: 10)
+                            RoundedRectangle(cornerRadius: 6).fill(color)
+                                .frame(width: geo.size.width * prog, height: 10)
+                                .animation(.spring(response: 0.5), value: prog)
+                        }
+                    }.frame(height: 10)
+                    HStack {
+                        Text("\(Int(prog * 100))% spent").font(.system(size: 11)).foregroundStyle(Color.bobInk2)
+                        Spacer()
+                        Text(CurrencyFormatter.string(monthlyBudget, code: currencyCode) + " budget")
+                            .font(.system(size: 11)).foregroundStyle(Color.bobInk2)
+                    }
+                } else {
+                    Text("No budget set — go to Settings to set one")
+                        .font(.system(size: 13)).foregroundStyle(Color.bobInk2)
+                }
+                Spacer()
+                HStack(spacing: 20) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Spent").font(.system(size: 11)).foregroundStyle(Color.bobInk2)
+                        Text(CurrencyFormatter.string(monthExpensesTotal, code: currencyCode))
+                            .font(.system(size: 17, weight: .bold)).foregroundStyle(Color.bobDebit).monospacedDigit()
+                    }
+                    Divider().frame(height: 30).background(Color.bobHairline)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Income").font(.system(size: 11)).foregroundStyle(Color.bobInk2)
+                        Text(CurrencyFormatter.string(monthIncome, code: currencyCode))
+                            .font(.system(size: 17, weight: .bold)).foregroundStyle(Color.bobGreen).monospacedDigit()
+                    }
+                    Spacer()
+                }
+            }
+            .padding(Spacing.m)
+        }
+        .glassEffect(in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+    }
+
+    // Card 3: Savings snapshot
+    private var savingsCard: some View {
+        let activeGoals = goals.filter { $0.isActive && !$0.isCompleted }
+        let totalSaved  = activeGoals.reduce(Decimal(0)) { $0 + $1.totalSaved }
+        let totalTarget = activeGoals.reduce(Decimal(0)) { $0 + $1.targetAmount }
+        let progress    = totalTarget > 0 ? min(Double((totalSaved / totalTarget) as NSDecimalNumber), 1.0) : 0.0
+
+        return VStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Text("Savings Goals").font(.system(size: 13)).foregroundStyle(Color.bobInk2)
+                    Spacer()
+                    Text("\(activeGoals.count) active").font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.bobAccent)
+                }
+                Text(CurrencyFormatter.string(totalSaved, code: currencyCode))
+                    .font(.system(size: 28, weight: .bold)).foregroundStyle(Color.bobInk)
+                Text("of \(CurrencyFormatter.string(totalTarget, code: currencyCode)) target")
+                    .font(.system(size: 13)).foregroundStyle(Color.bobInk2)
+
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        RoundedRectangle(cornerRadius: 6).fill(Color.bobSurface2).frame(height: 8)
+                        RoundedRectangle(cornerRadius: 6).fill(Color.bobAccent)
+                            .frame(width: geo.size.width * progress, height: 8)
+                            .animation(.spring(response: 0.5), value: progress)
+                    }
+                }.frame(height: 8)
+
+                HStack {
+                    Text("\(Int(progress * 100))% overall").font(.system(size: 11)).foregroundStyle(Color.bobInk2)
+                    Spacer()
+                    if activeGoals.isEmpty {
+                        Text("No goals yet").font(.system(size: 11)).foregroundStyle(Color.bobInk2)
+                    } else if let nearest = activeGoals.sorted(by: { $0.deadline < $1.deadline }).first {
+                        Text("Next: \(nearest.name) in \(nearest.daysLeft)d")
+                            .font(.system(size: 11)).foregroundStyle(Color.bobInk2).lineLimit(1)
+                    }
+                }
+                Spacer()
+            }
+            .padding(Spacing.m)
+        }
+        .glassEffect(in: RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 
     // MARK: – Hero card
@@ -242,9 +374,7 @@ struct HomeView: View {
             .padding(.horizontal, Spacing.m)
             .padding(.bottom, Spacing.m)
         }
-        .background(Color.bobSurface)
-        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(Color.bobHairline, lineWidth: 0.5))
+        .glassEffect(in: RoundedRectangle(cornerRadius: 20, style: .continuous))
     }
 
     // MARK: – Spend chart
@@ -384,9 +514,7 @@ struct HomeView: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 14)
         .frame(width: 110)
-        .background(Color.bobSurface)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.bobHairline, lineWidth: 0.5))
+        .glassEffect(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
     // MARK: – Recent transactions

@@ -15,9 +15,12 @@ extension Color {
     // MARK: – Borders
     static let bobHairline     = Color.bobHex(0x3F3F3F)   // Notion border
 
-    // MARK: – Accent — green
-    static let bobAccent       = Color.bobHex(0x4ADE80)
-    static let bobAccentSoft   = Color.bobHex(0x4ADE80).opacity(0.15)
+    // MARK: – Accent — Apple blue
+    static let bobAccent       = Color.bobHex(0x007AFF)
+    static let bobAccentSoft   = Color.bobHex(0x007AFF).opacity(0.15)
+
+    // MARK: – Income green (separate from accent)
+    static let bobGreen        = Color.bobHex(0x30D158)
 
     // MARK: – Negative
     static let bobOverBudget   = Color.bobHex(0xFF5252)
