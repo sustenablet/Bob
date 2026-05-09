@@ -11,9 +11,24 @@ struct AnalyticsView: View {
     @State private var reportKind: TransactionKind = .expense
     @State private var selectedCategoryIndex: Int? = nil
     @State private var chartType: ChartDisplayType = .donut
+    @State private var drilldownCategory: CategoryData? = nil
 
     private var currencyCode: String { settingsList.first?.currencyCode ?? "USD" }
     private var budget: Decimal { settingsList.first?.monthlyBudget ?? 0 }
+
+    // Previous period totals (for summary card, independent of reportKind)
+    private var prevPeriodIncome: Decimal {
+        allExpenses.filter { $0.kind == .income && isInPreviousPeriod($0.date) }.reduce(0) { $0 + $1.amount }
+    }
+    private var prevPeriodExpenses: Decimal {
+        allExpenses.filter { $0.kind == .expense && isInPreviousPeriod($0.date) }.reduce(0) { $0 + $1.amount }
+    }
+    private var currentPeriodIncome: Decimal {
+        allExpenses.filter { $0.kind == .income && isInPeriod($0.date) }.reduce(0) { $0 + $1.amount }
+    }
+    private var currentPeriodExpenses: Decimal {
+        allExpenses.filter { $0.kind == .expense && isInPeriod($0.date) }.reduce(0) { $0 + $1.amount }
+    }
 
     // MARK: Data
 
@@ -65,6 +80,7 @@ struct AnalyticsView: View {
                 Color.bobBackground.ignoresSafeArea()
                 ScrollView {
                     VStack(spacing: Spacing.l) {
+                        periodSummaryCard.padding(.horizontal, Spacing.pageMargin)
                         kindToggle.padding(.horizontal, Spacing.pageMargin)
                         periodPicker
 
@@ -73,7 +89,13 @@ struct AnalyticsView: View {
                         } else {
                             keyMetricsRow.padding(.horizontal, Spacing.pageMargin)
                             chartSection.padding(.horizontal, Spacing.pageMargin)
+                            if budget > 0 && selectedPeriod == .currentMonth && reportKind == .expense {
+                                budgetVsActualSection.padding(.horizontal, Spacing.pageMargin)
+                            }
                             categoryList.padding(.horizontal, Spacing.pageMargin)
+                            if !insights.isEmpty {
+                                insightsSection.padding(.horizontal, Spacing.pageMargin)
+                            }
                             if dailySpending.count >= 2 {
                                 trendSection.padding(.horizontal, Spacing.pageMargin)
                             }
@@ -87,6 +109,15 @@ struct AnalyticsView: View {
             }
             .navigationTitle("Analytics")
             .navigationBarTitleDisplayMode(.large)
+            .navigationDestination(item: $drilldownCategory) { cat in
+                CategoryTransactionsView(
+                    categoryName: cat.category,
+                    symbol: cat.symbol,
+                    period: selectedPeriod,
+                    kind: reportKind,
+                    currencyCode: currencyCode
+                )
+            }
         }
         .onChange(of: reportKind)     { _, _ in withAnimation { selectedCategoryIndex = nil } }
         .onChange(of: selectedPeriod) { _, _ in withAnimation { selectedCategoryIndex = nil } }
@@ -302,7 +333,8 @@ struct AnalyticsView: View {
                         withAnimation(.easeOut(duration: 0.2)) {
                             selectedCategoryIndex = selectedCategoryIndex == idx ? nil : idx
                         }
-                    }
+                    },
+                    onDrillDown: { drilldownCategory = item }
                 )
             }
         }
@@ -345,6 +377,209 @@ struct AnalyticsView: View {
                     .frame(maxWidth: .infinity).padding(.vertical, Spacing.xl)
             } else {
                 BarChartView(data: monthlyData, currencyCode: currencyCode)
+            }
+        }
+        .padding(Spacing.m)
+        .background(Color.bobSurface)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+
+    // MARK: – Period summary card (always shown at top)
+
+    private var periodSummaryCard: some View {
+        let incomeChange = pctChange(from: prevPeriodIncome, to: currentPeriodIncome)
+        let expenseChange = pctChange(from: prevPeriodExpenses, to: currentPeriodExpenses)
+        let currSavings = currentPeriodIncome - currentPeriodExpenses
+        let prevSavings = prevPeriodIncome - prevPeriodExpenses
+        let savingsChange = pctChange(from: prevSavings, to: currSavings)
+
+        return VStack(spacing: 0) {
+            HStack {
+                Text("Period Summary")
+                    .font(.system(size: 13, weight: .semibold)).foregroundStyle(Color.bobInk2)
+                Spacer()
+                Text("vs prior period")
+                    .font(.system(size: 11)).foregroundStyle(Color.bobInk3)
+            }
+            .padding(.bottom, Spacing.s)
+
+            HStack(spacing: 0) {
+                summaryStatCol(label: "Income", amount: currentPeriodIncome, change: incomeChange, positiveIsGood: true)
+                Divider().frame(height: 40).padding(.horizontal, Spacing.m)
+                summaryStatCol(label: "Expenses", amount: currentPeriodExpenses, change: expenseChange, positiveIsGood: false)
+                Divider().frame(height: 40).padding(.horizontal, Spacing.m)
+                summaryStatCol(label: "Savings", amount: currSavings, change: savingsChange, positiveIsGood: true)
+            }
+        }
+        .padding(Spacing.m)
+        .background(Color.bobSurface)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.bobHairline, lineWidth: 1))
+    }
+
+    private func summaryStatCol(label: String, amount: Decimal, change: Double?, positiveIsGood: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(label).font(.system(size: 11)).foregroundStyle(Color.bobInk3)
+            Text(CurrencyFormatter.string(abs(amount as NSDecimalNumber as Decimal), code: currencyCode))
+                .font(.system(size: 14, weight: .bold)).foregroundStyle(Color.bobInk).monospacedDigit()
+                .lineLimit(1).minimumScaleFactor(0.6)
+            if let ch = change {
+                let isGood = positiveIsGood ? ch >= 0 : ch <= 0
+                HStack(spacing: 2) {
+                    Image(systemName: ch >= 0 ? "arrow.up" : "arrow.down")
+                        .font(.system(size: 9, weight: .bold))
+                    Text(String(format: "%.0f%%", abs(ch)))
+                        .font(.system(size: 10, weight: .semibold))
+                }
+                .foregroundStyle(isGood ? Color.bobAccent : Color.bobDebit)
+            } else {
+                Text("—").font(.system(size: 10)).foregroundStyle(Color.bobInk3)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func pctChange(from prev: Decimal, to curr: Decimal) -> Double? {
+        let p = (prev as NSDecimalNumber).doubleValue
+        guard abs(p) > 0.001 else { return nil }
+        return ((curr as NSDecimalNumber).doubleValue - p) / abs(p) * 100
+    }
+
+    // MARK: – Budget vs actual
+
+    private var budgetVsActualSection: some View {
+        VStack(alignment: .leading, spacing: Spacing.m) {
+            HStack {
+                Text("Budget vs Actual")
+                    .font(.system(size: 16, weight: .semibold)).foregroundStyle(Color.bobInk)
+                Spacer()
+                Text(CurrencyFormatter.string(budget, code: currencyCode) + " budget")
+                    .font(.system(size: 12)).foregroundStyle(Color.bobInk3)
+            }
+
+            ForEach(Array(categoryData.enumerated()), id: \.element.category) { idx, item in
+                budgetRow(item: item, index: idx)
+            }
+
+            let overallPct = budget > 0 ? min(Double((totalAmount / budget) as NSDecimalNumber) * 100, 999) : 0
+            let remaining = budget - totalAmount
+            HStack {
+                Text("Total: \(CurrencyFormatter.string(totalAmount, code: currencyCode))")
+                    .font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.bobInk)
+                Spacer()
+                Text(remaining >= 0
+                     ? "\(CurrencyFormatter.string(remaining, code: currencyCode)) left"
+                     : "\(CurrencyFormatter.string(abs(remaining as NSDecimalNumber as Decimal), code: currencyCode)) over")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(remaining >= 0 ? Color.bobAccent : Color.bobDebit)
+            }
+            .padding(.top, 4)
+        }
+        .padding(Spacing.m)
+        .background(Color.bobSurface)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+
+    private func budgetRow(item: CategoryData, index: Int) -> some View {
+        let share = budget > 0 ? min(Double((item.amount / budget) as NSDecimalNumber), 1.0) : 0
+        let pct = Int(share * 100)
+        let barColor: Color = pct >= 30 ? Color.bobDebit : pct >= 20 ? Color.bobHex(0xF59E0B) : chartPaletteColor(for: index)
+
+        return VStack(spacing: 5) {
+            HStack {
+                HStack(spacing: 6) {
+                    Circle().fill(chartPaletteColor(for: index)).frame(width: 8, height: 8)
+                    Text(item.category).font(.system(size: 13)).foregroundStyle(Color.bobInk)
+                }
+                Spacer()
+                Text(CurrencyFormatter.string(item.amount, code: currencyCode))
+                    .font(.system(size: 13, weight: .semibold)).monospacedDigit().foregroundStyle(Color.bobInk)
+                Text("\(pct)%").font(.system(size: 11)).foregroundStyle(Color.bobInk3)
+                    .frame(width: 36, alignment: .trailing)
+            }
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 3).fill(Color.bobHairline).frame(height: 6)
+                    RoundedRectangle(cornerRadius: 3).fill(barColor)
+                        .frame(width: geo.size.width * share, height: 6)
+                }
+            }
+            .frame(height: 6)
+        }
+    }
+
+    // MARK: – Insights
+
+    private var insights: [(icon: String, color: Color, text: String)] {
+        var result: [(String, Color, String)] = []
+
+        // Overall spending change
+        if let change = pctChange(from: prevPeriodExpenses, to: currentPeriodExpenses) {
+            if abs(change) > 10 {
+                let isUp = change > 0
+                result.append((
+                    isUp ? "arrow.up.circle.fill" : "arrow.down.circle.fill",
+                    isUp ? Color.bobDebit : Color.bobAccent,
+                    "Overall \(reportKind == .expense ? "spending" : "income") is \(isUp ? "up" : "down") \(String(format: "%.0f%%", abs(change))) vs last period"
+                ))
+            }
+        }
+
+        // Biggest category increase
+        if let top = categoryData.first(where: { cat in
+            if let prev = previousPeriodData[cat.category], prev > 0 {
+                return ((cat.amount - prev) / prev * 100 as NSDecimalNumber).doubleValue > 20
+            }
+            return false
+        }) {
+            let prev = previousPeriodData[top.category] ?? 0
+            let change = (((top.amount - prev) / prev * 100) as NSDecimalNumber).doubleValue
+            result.append((
+                "arrow.up.right.circle.fill",
+                Color.bobDebit,
+                "\(top.category) is up \(String(format: "%.0f%%", change)) compared to last period"
+            ))
+        }
+
+        // Biggest category decrease
+        if let dropped = categoryData.first(where: { cat in
+            if let prev = previousPeriodData[cat.category], prev > 0 {
+                return ((prev - cat.amount) / prev * 100 as NSDecimalNumber).doubleValue > 20
+            }
+            return false
+        }) {
+            let prev = previousPeriodData[dropped.category] ?? 0
+            let drop = (((prev - dropped.amount) / prev * 100) as NSDecimalNumber).doubleValue
+            result.append((
+                "arrow.down.right.circle.fill",
+                Color.bobAccent,
+                "\(dropped.category) is down \(String(format: "%.0f%%", drop)) — good progress"
+            ))
+        }
+
+        return Array(result.prefix(3))
+    }
+
+    private var insightsSection: some View {
+        VStack(alignment: .leading, spacing: Spacing.m) {
+            Text("Insights").eyebrow()
+
+            VStack(spacing: Spacing.s) {
+                ForEach(Array(insights.enumerated()), id: \.offset) { _, insight in
+                    HStack(spacing: 12) {
+                        Image(systemName: insight.icon)
+                            .font(.system(size: 18))
+                            .foregroundStyle(insight.color)
+                            .frame(width: 24)
+                        Text(insight.text)
+                            .font(.system(size: 13))
+                            .foregroundStyle(Color.bobInk)
+                        Spacer()
+                    }
+                    .padding(Spacing.m)
+                    .background(insight.color.opacity(0.07))
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                }
             }
         }
         .padding(Spacing.m)
@@ -740,6 +975,7 @@ struct CategoryCard: View {
     let currencyCode: String
     let isSelected: Bool
     let onTap: () -> Void
+    var onDrillDown: (() -> Void)? = nil
 
     private var pct: Int {
         guard total > 0 else { return 0 }
@@ -770,6 +1006,15 @@ struct CategoryCard: View {
                         Text(CurrencyFormatter.string(item.amount, code: currencyCode))
                             .font(.system(size: 15, weight: .semibold)).monospacedDigit().foregroundStyle(Color.bobInk)
                         momBadge
+                    }
+                    if let drill = onDrillDown {
+                        Button(action: drill) {
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(Color.bobInk3)
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.leading, 4)
                     }
                 }
                 GeometryReader { geo in
@@ -897,7 +1142,8 @@ enum AnalyticsPeriod: String, CaseIterable {
     }
 }
 
-struct CategoryData {
+struct CategoryData: Identifiable, Hashable {
+    var id: String { category }
     let category: String
     let amount: Decimal
     let symbol: String

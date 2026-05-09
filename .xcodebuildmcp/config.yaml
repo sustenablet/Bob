@@ -1,0 +1,10 @@
+schemaVersion: 1
+sessionDefaultsProfiles:
+  ios:
+    projectPath: /Users/joaoleite/Desktop/Bob/Bob.xcodeproj
+    scheme: Bob
+    simulatorName: iPhone 17
+    platform: iOS
+    simulatorId: 935F8B93-4ECB-4077-A820-2CC24A75868D
+    simulatorPlatform: iOS Simulator
+activeSessionDefaultsProfile: ios

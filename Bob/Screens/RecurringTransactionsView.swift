@@ -107,24 +107,32 @@ struct RecurringTransactionsView: View {
 
     // MARK: – Summary strip
 
+    private var monthlyOut: Decimal {
+        recurrings.filter { $0.isActive && $0.kind == .expense }.reduce(Decimal(0)) { $0 + monthlyEquivalent($1) }
+    }
+    private var monthlyIn: Decimal {
+        recurrings.filter { $0.isActive && $0.kind == .income }.reduce(Decimal(0)) { $0 + monthlyEquivalent($1) }
+    }
+    private var annualNet: Decimal { (monthlyIn - monthlyOut) * 12 }
+
     private var summaryStrip: some View {
         HStack(spacing: 0) {
             summaryCell(
-                label: "Active",
-                value: "\(activeRecurrings.count)",
+                label: "Monthly out",
+                value: CurrencyFormatter.compact(monthlyOut, code: currencyCode),
+                color: .bobDebit
+            )
+            Divider().frame(height: 36)
+            summaryCell(
+                label: "Monthly in",
+                value: CurrencyFormatter.compact(monthlyIn, code: currencyCode),
                 color: .bobAccent
             )
             Divider().frame(height: 36)
             summaryCell(
-                label: "Paused",
-                value: "\(inactiveRecurrings.count)",
-                color: .bobInk3
-            )
-            Divider().frame(height: 36)
-            summaryCell(
-                label: "Net Monthly",
-                value: monthlyNetLabel,
-                color: .bobInk
+                label: "Annual net",
+                value: (annualNet >= 0 ? "+" : "") + CurrencyFormatter.compact(annualNet, code: currencyCode),
+                color: annualNet >= 0 ? .bobAccent : .bobDebit
             )
         }
         .padding(.vertical, 14)
@@ -136,9 +144,9 @@ struct RecurringTransactionsView: View {
     private func summaryCell(label: String, value: String, color: Color) -> some View {
         VStack(spacing: 3) {
             Text(value)
-                .font(.system(size: 15, weight: .bold))
+                .font(.system(size: 14, weight: .bold))
                 .foregroundStyle(color)
-                .lineLimit(1).minimumScaleFactor(0.7)
+                .lineLimit(1).minimumScaleFactor(0.65)
             Text(label).font(.system(size: 11)).foregroundStyle(Color.bobInk2)
         }
         .frame(maxWidth: .infinity)
@@ -230,6 +238,7 @@ struct RecurringTransactionsView: View {
 // MARK: – Recurring card
 
 struct RecurringCard: View {
+    @Environment(\.modelContext) private var modelContext
     let recurring: RecurringTransaction
     let currencyCode: String
     var isInactive: Bool = false
@@ -289,11 +298,23 @@ struct RecurringCard: View {
                     .font(.system(size: 15, weight: .semibold))
                     .monospacedDigit()
                     .foregroundStyle(kindColor)
-
                 Text(isInactive ? "Paused" : monthlyCostLabel)
                     .font(.system(size: 10))
                     .foregroundStyle(Color.bobInk3)
             }
+
+            // Visible pause/resume button
+            Button {
+                recurring.isActive.toggle()
+                try? modelContext.save()
+                HapticManager.light()
+            } label: {
+                Image(systemName: recurring.isActive ? "pause.circle.fill" : "play.circle.fill")
+                    .font(.system(size: 22))
+                    .foregroundStyle(recurring.isActive ? Color.bobInk3 : Color.bobAccent)
+            }
+            .buttonStyle(.plain)
+            .padding(.leading, 4)
         }
         .padding(Spacing.m)
         .background(Color.bobSurface)

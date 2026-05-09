@@ -85,12 +85,34 @@ struct GoalsView: View {
     
     @State private var showArchived = false
 
+    // MARK: – Goal health helpers
+
+    private func goalHealth(_ goal: Goal) -> (label: String, color: Color, icon: String) {
+        if goal.isCompleted { return ("Completed", .bobAccent, "checkmark.circle.fill") }
+        guard !goal.contributions!.isEmpty else { return ("No contributions", .bobInk3, "clock") }
+        let cal = Calendar.current
+        let monthsActive = max(cal.dateComponents([.month], from: goal.createdAt, to: Date()).month ?? 1, 1)
+        let avg = goal.totalSaved / Decimal(monthsActive)
+        let remaining = max(goal.targetAmount - goal.totalSaved, 0)
+        guard avg > 0 else { return ("At Risk", .bobDebit, "exclamationmark.circle.fill") }
+        let monthsNeeded = Int(ceil(Double((remaining / avg) as NSDecimalNumber)))
+        let monthsLeft = max(cal.dateComponents([.month], from: Date(), to: goal.deadline).month ?? 0, 0)
+        if monthsNeeded <= monthsLeft { return ("On Track", .bobAccent, "checkmark.circle") }
+        if monthsNeeded <= monthsLeft + 3 { return ("Behind", Color.bobHex(0xF59E0B), "exclamationmark.circle") }
+        return ("At Risk", .bobDebit, "exclamationmark.circle.fill")
+    }
+
     private var goalsList: some View {
         ScrollView {
             VStack(spacing: Spacing.m) {
                 let activeGoals   = goals.filter { $0.isActive && !$0.isCompleted }
                 let completedGoals = goals.filter { $0.isCompleted }
                 let archivedGoals = goals.filter { !$0.isActive && !$0.isCompleted }
+
+                // Summary card
+                if activeGoals.count >= 2 {
+                    goalsSummaryCard(activeGoals: activeGoals)
+                }
 
                 if !activeGoals.isEmpty {
                     sectionHeader("Active — \(activeGoals.count)")
@@ -151,12 +173,58 @@ struct GoalsView: View {
     private func sectionHeader(_ title: String) -> some View {
         HStack {
             Text(title)
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(Color.bobInk3)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(Color.bobInk2)
                 .textCase(.uppercase)
+                .tracking(0.6)
             Spacer()
         }
-        .padding(.top, Spacing.s)
+        .padding(.top, Spacing.xs)
+    }
+
+    private func goalsSummaryCard(activeGoals: [Goal]) -> some View {
+        let totalSaved = activeGoals.reduce(Decimal(0)) { $0 + $1.totalSaved }
+        let totalTarget = activeGoals.reduce(Decimal(0)) { $0 + $1.targetAmount }
+        let avgProgress = totalTarget > 0 ? Double((totalSaved / totalTarget) as NSDecimalNumber) : 0
+        let remaining = totalTarget - totalSaved
+
+        return VStack(spacing: 10) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("\(activeGoals.count) active goals")
+                        .font(.system(size: 13, weight: .semibold)).foregroundStyle(Color.bobInk2)
+                    Text(CurrencyFormatter.string(totalSaved, code: currencyCode) + " saved")
+                        .font(.system(size: 20, weight: .bold)).foregroundStyle(Color.bobInk)
+                }
+                Spacer()
+                ZStack {
+                    Circle().stroke(Color.bobHairline, lineWidth: 6).frame(width: 52, height: 52)
+                    Circle().trim(from: 0, to: avgProgress)
+                        .stroke(Color.bobAccent, style: StrokeStyle(lineWidth: 6, lineCap: .round))
+                        .rotationEffect(.degrees(-90))
+                        .frame(width: 52, height: 52)
+                    Text("\(Int(avgProgress * 100))%")
+                        .font(.system(size: 11, weight: .bold)).foregroundStyle(Color.bobInk)
+                }
+            }
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 4).fill(Color.bobHairline).frame(height: 6)
+                    RoundedRectangle(cornerRadius: 4).fill(Color.bobAccent)
+                        .frame(width: geo.size.width * min(avgProgress, 1.0), height: 6)
+                }
+            }
+            .frame(height: 6)
+            HStack {
+                Text(CurrencyFormatter.string(remaining, code: currencyCode) + " remaining across all goals")
+                    .font(.system(size: 12)).foregroundStyle(Color.bobInk3)
+                Spacer()
+            }
+        }
+        .padding(Spacing.m)
+        .background(Color.bobSurface)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.bobHairline, lineWidth: 1))
     }
 }
 
@@ -165,6 +233,35 @@ struct GoalCard: View {
     let currencyCode: String
     var isCompleted: Bool = false
     
+    private var healthBadge: some View {
+        let (label, color, icon) = health
+        return HStack(spacing: 4) {
+            Image(systemName: icon).font(.system(size: 11, weight: .semibold))
+            Text(label).font(.system(size: 11, weight: .semibold))
+        }
+        .foregroundStyle(color)
+        .padding(.horizontal, 8).padding(.vertical, 4)
+        .background(color.opacity(0.1))
+        .clipShape(Capsule())
+    }
+
+    private var health: (label: String, color: Color, icon: String) {
+        if goal.isCompleted { return ("Completed", .bobAccent, "checkmark.circle.fill") }
+        if Date() > goal.deadline { return ("Overdue", .bobDebit, "exclamationmark.circle.fill") }
+        let contribs = goal.contributions ?? []
+        guard !contribs.isEmpty else { return ("No saves yet", .bobInk3, "clock") }
+        let cal = Calendar.current
+        let monthsActive = max(cal.dateComponents([.month], from: goal.createdAt, to: Date()).month ?? 1, 1)
+        let avg = goal.totalSaved / Decimal(monthsActive)
+        let remaining = max(goal.targetAmount - goal.totalSaved, 0)
+        guard avg > 0 else { return ("At Risk", .bobDebit, "exclamationmark.circle.fill") }
+        let monthsNeeded = Int(ceil(Double((remaining / avg) as NSDecimalNumber)))
+        let monthsLeft = max(cal.dateComponents([.month], from: Date(), to: goal.deadline).month ?? 0, 0)
+        if monthsNeeded <= monthsLeft { return ("On Track", .bobAccent, "checkmark.circle") }
+        if monthsNeeded <= monthsLeft + 3 { return ("Behind", Color.bobHex(0xF59E0B), "exclamationmark.circle") }
+        return ("At Risk", .bobDebit, "exclamationmark.circle.fill")
+    }
+
     private func isOverdue(_ goal: Goal) -> Bool {
         !goal.isCompleted && Date() > goal.deadline
     }
@@ -193,12 +290,9 @@ struct GoalCard: View {
                 }
                 
                 Spacer()
-                
-                if isCompleted {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 24))
-                        .foregroundStyle(Color.bobAccent)
-                }
+
+                // Health badge
+                healthBadge
             }
             
             VStack(alignment: .leading, spacing: 6) {
