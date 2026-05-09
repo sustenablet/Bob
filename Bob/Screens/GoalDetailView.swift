@@ -155,7 +155,7 @@ struct GoalDetailView: View {
 
                 HStack(spacing: 4) {
                     Text("of")
-                        .foregroundStyle(Color.bobInk3)
+                        .foregroundStyle(Color.bobInk2)
                     Text(CurrencyFormatter.string(goal.targetAmount, code: currencyCode))
                         .foregroundStyle(Color.bobInk2)
                         .fontWeight(.medium)
@@ -383,7 +383,7 @@ struct GoalDetailView: View {
                 }
                 HStack(spacing: 12) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Need").font(.system(size: 11)).foregroundStyle(Color.bobInk3)
+                        Text("Need").font(.system(size: 11)).foregroundStyle(Color.bobInk2)
                         Text(CurrencyFormatter.string(needed, code: currencyCode))
                             .font(.system(size: 15, weight: .bold)).monospacedDigit().foregroundStyle(Color.bobInk)
                     }
@@ -396,7 +396,7 @@ struct GoalDetailView: View {
                         }
                     }.frame(height: 8)
                     VStack(alignment: .trailing, spacing: 2) {
-                        Text("Saved").font(.system(size: 11)).foregroundStyle(Color.bobInk3)
+                        Text("Saved").font(.system(size: 11)).foregroundStyle(Color.bobInk2)
                         Text(CurrencyFormatter.string(saved, code: currencyCode))
                             .font(.system(size: 15, weight: .bold)).monospacedDigit()
                             .foregroundStyle(metTarget ? Color.bobAccent : Color.bobInk2)
@@ -507,7 +507,7 @@ struct GoalDetailView: View {
                 VStack(spacing: 10) {
                     Image(systemName: "tray")
                         .font(.system(size: 36))
-                        .foregroundStyle(Color.bobInk3)
+                        .foregroundStyle(Color.bobInk2)
                     Text("No contributions yet")
                         .font(.system(size: 15, weight: .medium))
                         .foregroundStyle(Color.bobInk2)

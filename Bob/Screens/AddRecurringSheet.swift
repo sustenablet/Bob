@@ -116,7 +116,7 @@ struct AddRecurringSheet: View {
                                 Spacer()
                                 Image(systemName: "chevron.down")
                                     .font(.system(size: 11, weight: .medium))
-                                    .foregroundStyle(Color.bobInk3)
+                                    .foregroundStyle(Color.bobInk2)
                                     .rotationEffect(.degrees(showDatePicker ? 180 : 0))
                             }
                             .padding(Spacing.m)

@@ -65,7 +65,7 @@ struct AddContributionSheet: View {
                                 Spacer()
                                 Image(systemName: "chevron.down")
                                     .font(.system(size: 11, weight: .medium))
-                                    .foregroundStyle(Color.bobInk3)
+                                    .foregroundStyle(Color.bobInk2)
                                     .rotationEffect(.degrees(showDatePicker ? 180 : 0))
                             }
                             .padding(Spacing.m)
@@ -178,7 +178,7 @@ struct AddContributionSheet: View {
                         .foregroundStyle(Color.bobAccent)
                     Text("after this")
                         .font(.system(size: 10))
-                        .foregroundStyle(Color.bobInk3)
+                        .foregroundStyle(Color.bobInk2)
                 }
                 .transition(.opacity.combined(with: .scale(scale: 0.9)))
             }

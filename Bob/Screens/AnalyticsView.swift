@@ -81,6 +81,8 @@ struct AnalyticsView: View {
                 Color.bobBackground.ignoresSafeArea()
                 ScrollView {
                     VStack(spacing: Spacing.l) {
+                        pageHeader(title: "Analytics", subtitle: "Your financial breakdown")
+                            .padding(.horizontal, Spacing.pageMargin)
                         periodSummaryCard.padding(.horizontal, Spacing.pageMargin)
                         kindToggle.padding(.horizontal, Spacing.pageMargin)
                         periodPicker
@@ -123,10 +125,7 @@ struct AnalyticsView: View {
                     .padding(.bottom, 100)
                 }
             }
-            .navigationTitle("Analytics")
-            .navigationBarTitleDisplayMode(.large)
-            .toolbarBackground(Color.bobBackground, for: .navigationBar)
-            .toolbarBackgroundVisibility(.visible, for: .navigationBar)
+            .navigationBarHidden(true)
             .navigationDestination(item: $drilldownCategory) { cat in
                 CategoryTransactionsView(
                     categoryName: cat.category,
@@ -142,6 +141,23 @@ struct AnalyticsView: View {
         }
         .onChange(of: reportKind)     { _, _ in withAnimation { selectedCategoryIndex = nil } }
         .onChange(of: selectedPeriod) { _, _ in withAnimation { selectedCategoryIndex = nil } }
+    }
+
+    // MARK: – Page header (consistent across tabs)
+
+    private func pageHeader(title: String, subtitle: String) -> some View {
+        HStack(alignment: .center) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 28, weight: .bold))
+                    .foregroundStyle(Color.bobInk)
+                Text(subtitle)
+                    .font(.system(size: 14))
+                    .foregroundStyle(Color.bobInk2)
+            }
+            Spacer()
+        }
+        .padding(.top, 8)
     }
 
     // MARK: – Kind toggle
@@ -398,7 +414,7 @@ struct AnalyticsView: View {
             Text("Income vs Expenses")
                 .font(.system(size: 16, weight: .semibold)).foregroundStyle(Color.bobInk)
             if monthlyData.isEmpty {
-                Text("Not enough data yet").font(.bobBody).foregroundStyle(Color.bobInk3)
+                Text("Not enough data yet").font(.bobBody).foregroundStyle(Color.bobInk2)
                     .frame(maxWidth: .infinity).padding(.vertical, Spacing.xl)
             } else {
                 BarChartView(data: monthlyData, currencyCode: currencyCode)
@@ -424,7 +440,7 @@ struct AnalyticsView: View {
                     .font(.system(size: 13, weight: .semibold)).foregroundStyle(Color.bobInk2)
                 Spacer()
                 Text("vs prior period")
-                    .font(.system(size: 11)).foregroundStyle(Color.bobInk3)
+                    .font(.system(size: 11)).foregroundStyle(Color.bobInk2)
             }
             .padding(.bottom, Spacing.s)
 
@@ -444,7 +460,7 @@ struct AnalyticsView: View {
 
     private func summaryStatCol(label: String, amount: Decimal, change: Double?, positiveIsGood: Bool) -> some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text(label).font(.system(size: 11)).foregroundStyle(Color.bobInk3)
+            Text(label).font(.system(size: 11)).foregroundStyle(Color.bobInk2)
             Text(CurrencyFormatter.string(abs(amount as NSDecimalNumber as Decimal), code: currencyCode))
                 .font(.system(size: 14, weight: .bold)).foregroundStyle(Color.bobInk).monospacedDigit()
                 .lineLimit(1).minimumScaleFactor(0.6)
@@ -458,7 +474,7 @@ struct AnalyticsView: View {
                 }
                 .foregroundStyle(isGood ? Color.bobAccent : Color.bobDebit)
             } else {
-                Text("—").font(.system(size: 10)).foregroundStyle(Color.bobInk3)
+                Text("—").font(.system(size: 10)).foregroundStyle(Color.bobInk2)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -479,7 +495,7 @@ struct AnalyticsView: View {
                     .font(.system(size: 16, weight: .semibold)).foregroundStyle(Color.bobInk)
                 Spacer()
                 Text(CurrencyFormatter.string(budget, code: currencyCode) + " budget")
-                    .font(.system(size: 12)).foregroundStyle(Color.bobInk3)
+                    .font(.system(size: 12)).foregroundStyle(Color.bobInk2)
             }
 
             ForEach(Array(categoryData.enumerated()), id: \.element.category) { idx, item in
@@ -519,7 +535,7 @@ struct AnalyticsView: View {
                 Spacer()
                 Text(CurrencyFormatter.string(item.amount, code: currencyCode))
                     .font(.system(size: 13, weight: .semibold)).monospacedDigit().foregroundStyle(Color.bobInk)
-                Text("\(pct)%").font(.system(size: 11)).foregroundStyle(Color.bobInk3)
+                Text("\(pct)%").font(.system(size: 11)).foregroundStyle(Color.bobInk2)
                     .frame(width: 36, alignment: .trailing)
             }
             GeometryReader { geo in
@@ -649,14 +665,14 @@ struct AnalyticsView: View {
         return VStack(alignment: .leading, spacing: Spacing.m) {
             Text("Weekly Breakdown").font(.system(size: 16, weight: .semibold)).foregroundStyle(Color.bobInk)
             if weeks.isEmpty {
-                Text("No data").font(.bobBody).foregroundStyle(Color.bobInk3)
+                Text("No data").font(.bobBody).foregroundStyle(Color.bobInk2)
             } else {
                 VStack(spacing: 10) {
                     ForEach(Array(weeks.enumerated()), id: \.offset) { _, week in
                         HStack(spacing: 10) {
                             VStack(alignment: .leading, spacing: 1) {
                                 Text(week.0).font(.system(size: 13, weight: .semibold)).foregroundStyle(Color.bobInk)
-                                Text(week.1).font(.system(size: 10)).foregroundStyle(Color.bobInk3)
+                                Text(week.1).font(.system(size: 10)).foregroundStyle(Color.bobInk2)
                             }
                             .frame(width: 80, alignment: .leading)
                             GeometryReader { geo in
@@ -731,7 +747,7 @@ struct AnalyticsView: View {
         HStack(spacing: 6) {
             Circle().fill(color).frame(width: 10, height: 10)
             VStack(alignment: .leading, spacing: 1) {
-                Text(label).font(.system(size: 12)).foregroundStyle(Color.bobInk3)
+                Text(label).font(.system(size: 12)).foregroundStyle(Color.bobInk2)
                 Text(CurrencyFormatter.string(amount, code: currencyCode))
                     .font(.system(size: 13, weight: .semibold)).monospacedDigit().foregroundStyle(Color.bobInk)
             }
@@ -764,7 +780,7 @@ struct AnalyticsView: View {
                             Spacer()
                             Text(CurrencyFormatter.string(m.amount, code: currencyCode))
                                 .font(.system(size: 14, weight: .semibold)).monospacedDigit().foregroundStyle(Color.bobInk)
-                            Text("·  \(m.count)x").font(.system(size: 12)).foregroundStyle(Color.bobInk3)
+                            Text("·  \(m.count)x").font(.system(size: 12)).foregroundStyle(Color.bobInk2)
                         }
                         GeometryReader { geo in
                             ZStack(alignment: .leading) {
@@ -853,7 +869,7 @@ struct AnalyticsView: View {
                                 Text(tx.merchant?.isEmpty == false ? tx.merchant! : tx.category?.name ?? "Expense")
                                     .font(.system(size: 14, weight: .semibold)).foregroundStyle(Color.bobInk).lineLimit(1)
                                 Text(shortDate(tx.date))
-                                    .font(.system(size: 12)).foregroundStyle(Color.bobInk3)
+                                    .font(.system(size: 12)).foregroundStyle(Color.bobInk2)
                             }
                             Spacer()
                             Text(CurrencyFormatter.string(tx.amount, code: currencyCode))
@@ -883,7 +899,7 @@ struct AnalyticsView: View {
     private var emptyState: some View {
         VStack(spacing: 16) {
             Image(systemName: reportKind == .expense ? "chart.pie" : "arrow.down.circle")
-                .font(.system(size: 52)).foregroundStyle(Color.bobInk3)
+                .font(.system(size: 52)).foregroundStyle(Color.bobInk2)
             Text("No \(reportKind == .expense ? "expenses" : "income") recorded for this period")
                 .font(.system(size: 15, weight: .medium)).foregroundStyle(Color.bobInk2)
                 .multilineTextAlignment(.center)
@@ -1122,7 +1138,7 @@ struct HorizontalBarsChart: View {
                         Text(CurrencyFormatter.string(item.amount, code: currencyCode))
                             .font(.system(size: 13, weight: .semibold)).monospacedDigit().foregroundStyle(Color.bobInk)
                         Text(pctLabel(item))
-                            .font(.system(size: 11)).foregroundStyle(Color.bobInk3)
+                            .font(.system(size: 11)).foregroundStyle(Color.bobInk2)
                             .frame(width: 36, alignment: .trailing)
                     }
                     GeometryReader { geo in
@@ -1207,13 +1223,13 @@ struct SpendingTrendChart: View {
             // X-axis labels (show first, mid, last)
             if data.count >= 2 {
                 HStack {
-                    Text(shortDate(data.first!.date)).font(.system(size: 10)).foregroundStyle(Color.bobInk3)
+                    Text(shortDate(data.first!.date)).font(.system(size: 10)).foregroundStyle(Color.bobInk2)
                     Spacer()
                     if data.count > 4 {
-                        Text(shortDate(data[data.count / 2].date)).font(.system(size: 10)).foregroundStyle(Color.bobInk3)
+                        Text(shortDate(data[data.count / 2].date)).font(.system(size: 10)).foregroundStyle(Color.bobInk2)
                     }
                     Spacer()
-                    Text(shortDate(data.last!.date)).font(.system(size: 10)).foregroundStyle(Color.bobInk3)
+                    Text(shortDate(data.last!.date)).font(.system(size: 10)).foregroundStyle(Color.bobInk2)
                 }
             }
         }
@@ -1290,7 +1306,7 @@ struct CategoryCard: View {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(item.category)
                             .font(.system(size: 15, weight: .semibold)).foregroundStyle(Color.bobInk).lineLimit(1)
-                        Text("\(pct)% of total").font(.system(size: 12)).foregroundStyle(Color.bobInk3)
+                        Text("\(pct)% of total").font(.system(size: 12)).foregroundStyle(Color.bobInk2)
                     }
                     Spacer()
                     VStack(alignment: .trailing, spacing: 4) {
@@ -1302,7 +1318,7 @@ struct CategoryCard: View {
                         Button(action: drill) {
                             Image(systemName: "chevron.right")
                                 .font(.system(size: 12, weight: .semibold))
-                                .foregroundStyle(Color.bobInk3)
+                                .foregroundStyle(Color.bobInk2)
                         }
                         .buttonStyle(.plain)
                         .padding(.leading, 4)
@@ -1363,7 +1379,7 @@ struct BarChartView: View {
                             bar(height: barH(data[idx].expense), color: Color.bobOverBudget)
                             bar(height: barH(data[idx].income),  color: Color.bobAccent)
                         }
-                        Text(monthLabel(for: data[idx].month)).font(.system(size: 10)).foregroundStyle(Color.bobInk3)
+                        Text(monthLabel(for: data[idx].month)).font(.system(size: 10)).foregroundStyle(Color.bobInk2)
                     }
                 }
             }
@@ -1383,7 +1399,7 @@ struct BarChartView: View {
     private func legendDot(color: Color, label: String) -> some View {
         HStack(spacing: 6) {
             Circle().fill(color).frame(width: 8, height: 8)
-            Text(label).font(.system(size: 12)).foregroundStyle(Color.bobInk3)
+            Text(label).font(.system(size: 12)).foregroundStyle(Color.bobInk2)
         }
     }
 

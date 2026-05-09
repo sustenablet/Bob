@@ -60,10 +60,7 @@ struct GoalsView: View {
                 Color.bobBackground.ignoresSafeArea()
                 if goals.isEmpty { emptyState } else { goalsList }
             }
-            .navigationTitle("Savings Goals")
-            .navigationBarTitleDisplayMode(.large)
-            .toolbarBackground(Color.bobBackground, for: .navigationBar)
-            .toolbarBackgroundVisibility(.visible, for: .navigationBar)
+            .navigationBarHidden(true)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { showAddGoal = true } label: {
@@ -109,6 +106,25 @@ struct GoalsView: View {
     private var goalsList: some View {
         ScrollView {
             VStack(spacing: Spacing.l) {
+                // Page header
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Savings Goals")
+                            .font(.system(size: 28, weight: .bold)).foregroundStyle(Color.bobInk)
+                        let count = activeGoals.count
+                        Text(count == 0 ? "No active goals" : "\(count) active goal\(count == 1 ? "" : "s")")
+                            .font(.system(size: 14)).foregroundStyle(Color.bobInk2)
+                    }
+                    Spacer()
+                    Button { showAddGoal = true } label: {
+                        ZStack {
+                            Circle().fill(Color.bobAccent).frame(width: 36, height: 36)
+                            Image(systemName: "plus").font(.system(size: 16, weight: .bold)).foregroundStyle(.white)
+                        }
+                    }
+                }
+                .padding(.top, 8)
+
                 // Hero summary
                 if !activeGoals.isEmpty { goalsHero }
 
@@ -136,7 +152,7 @@ struct GoalsView: View {
                                 sectionHeader("Completed — \(completedGoals.count)")
                                 Spacer()
                                 Image(systemName: showCompleted ? "chevron.up" : "chevron.down")
-                                    .font(.system(size: 11, weight: .semibold)).foregroundStyle(Color.bobInk3)
+                                    .font(.system(size: 11, weight: .semibold)).foregroundStyle(Color.bobInk2)
                             }
                         }.buttonStyle(.plain)
 
@@ -162,7 +178,7 @@ struct GoalsView: View {
                                 sectionHeader("Archived — \(archivedGoals.count)")
                                 Spacer()
                                 Image(systemName: showArchived ? "chevron.up" : "chevron.down")
-                                    .font(.system(size: 11, weight: .semibold)).foregroundStyle(Color.bobInk3)
+                                    .font(.system(size: 11, weight: .semibold)).foregroundStyle(Color.bobInk2)
                             }
                         }.buttonStyle(.plain)
 
@@ -204,7 +220,7 @@ struct GoalsView: View {
                     Text(CurrencyFormatter.string(totalSaved, code: currencyCode))
                         .font(.system(size: 28, weight: .bold)).foregroundStyle(Color.bobInk)
                     Text(CurrencyFormatter.string(remaining, code: currencyCode) + " remaining")
-                        .font(.system(size: 13)).foregroundStyle(Color.bobInk3)
+                        .font(.system(size: 13)).foregroundStyle(Color.bobInk2)
                 }
                 Spacer()
                 ZStack {
@@ -330,7 +346,7 @@ struct GoalCard: View {
                             Text(CurrencyFormatter.string(goal.totalSaved, code: currencyCode))
                                 .font(.system(size: 20, weight: .bold)).foregroundStyle(Color.bobInk)
                             Text("of \(CurrencyFormatter.string(goal.targetAmount, code: currencyCode))")
-                                .font(.system(size: 12)).foregroundStyle(Color.bobInk3)
+                                .font(.system(size: 12)).foregroundStyle(Color.bobInk2)
                         }
                         if remaining > 0 {
                             Text(CurrencyFormatter.string(remaining, code: currencyCode) + " to go")
@@ -338,7 +354,7 @@ struct GoalCard: View {
                             let monthsLeft = max(Calendar.current.dateComponents([.month], from: Date(), to: goal.deadline).month ?? 1, 1)
                             let neededPerMonth = remaining / Decimal(monthsLeft)
                             Text("Save \(CurrencyFormatter.compact(neededPerMonth, code: currencyCode))/mo to reach goal")
-                                .font(.system(size: 11)).foregroundStyle(Color.bobInk3)
+                                .font(.system(size: 11)).foregroundStyle(Color.bobInk2)
                         }
                     }
                     Spacer()
@@ -357,8 +373,8 @@ struct GoalCard: View {
                     .clipShape(Capsule())
 
                     if let proj = projectedLabel {
-                        Text("·").foregroundStyle(Color.bobInk3)
-                        Text(proj).font(.system(size: 11)).foregroundStyle(Color.bobInk3)
+                        Text("·").foregroundStyle(Color.bobInk2)
+                        Text(proj).font(.system(size: 11)).foregroundStyle(Color.bobInk2)
                     }
 
                     Spacer()

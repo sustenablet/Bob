@@ -73,6 +73,24 @@ struct RecurringTransactionsView: View {
                 } else {
                     ScrollView {
                         VStack(spacing: Spacing.m) {
+                            // Page header
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Recurring")
+                                        .font(.system(size: 28, weight: .bold)).foregroundStyle(Color.bobInk)
+                                    Text("\(activeRecurrings.count) active · \(inactiveRecurrings.count) paused")
+                                        .font(.system(size: 14)).foregroundStyle(Color.bobInk2)
+                                }
+                                Spacer()
+                                Button { showAddRecurring = true } label: {
+                                    ZStack {
+                                        Circle().fill(Color.bobInk).frame(width: 36, height: 36)
+                                        Image(systemName: "plus").font(.system(size: 16, weight: .bold)).foregroundStyle(.white)
+                                    }
+                                }
+                            }
+                            .padding(.top, 8)
+
                             summaryStrip
                             if !upcoming30.isEmpty { upcomingCalendarSection }
                             if !activeRecurrings.isEmpty { activeSection }
@@ -85,10 +103,7 @@ struct RecurringTransactionsView: View {
                     }
                 }
             }
-            .navigationTitle("Recurring")
-            .navigationBarTitleDisplayMode(.large)
-            .toolbarBackground(Color.bobBackground, for: .navigationBar)
-            .toolbarBackgroundVisibility(.visible, for: .navigationBar)
+            .navigationBarHidden(true)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { showAddRecurring = true } label: {
@@ -168,10 +183,10 @@ struct RecurringTransactionsView: View {
         return Button { editingRecurring = r } label: {
             HStack(spacing: 12) {
                 Text(df.string(from: r.nextDueDate))
-                    .font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.bobInk3).frame(width: 40)
+                    .font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.bobInk2).frame(width: 40)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(r.name).font(.system(size: 14, weight: .medium)).foregroundStyle(Color.bobInk).lineLimit(1)
-                    if let cat = r.category?.name { Text(cat).font(.system(size: 11)).foregroundStyle(Color.bobInk3) }
+                    if let cat = r.category?.name { Text(cat).font(.system(size: 11)).foregroundStyle(Color.bobInk2) }
                 }
                 Spacer()
                 Text((isIncome ? "+" : "") + CurrencyFormatter.string(r.amount, code: currencyCode))
@@ -216,9 +231,9 @@ struct RecurringTransactionsView: View {
                             .textCase(.uppercase).tracking(0.5)
                         Spacer()
                         Text("≈ \(CurrencyFormatter.compact(group.total, code: currencyCode))/mo")
-                            .font(.system(size: 11)).foregroundStyle(Color.bobInk3)
+                            .font(.system(size: 11)).foregroundStyle(Color.bobInk2)
                         Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                            .font(.system(size: 10, weight: .semibold)).foregroundStyle(Color.bobInk3)
+                            .font(.system(size: 10, weight: .semibold)).foregroundStyle(Color.bobInk2)
                     }
                 }
                 .buttonStyle(.plain)
@@ -299,7 +314,7 @@ struct RecurringTransactionsView: View {
 
     private func projectionStat(label: String, value: String, color: Color) -> some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text(label).font(.system(size: 11)).foregroundStyle(Color.bobInk3)
+            Text(label).font(.system(size: 11)).foregroundStyle(Color.bobInk2)
             Text(value).font(.system(size: 14, weight: .bold)).foregroundStyle(color).lineLimit(1).minimumScaleFactor(0.65)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -396,7 +411,7 @@ struct RecurringCard: View {
                 Text(recurring.name).font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(isInactive ? Color.bobInk3 : Color.bobInk)
                 HStack(spacing: 6) {
-                    Text("\(frequencyLabel) · \(formattedNextDue)").font(.system(size: 12)).foregroundStyle(Color.bobInk3)
+                    Text("\(frequencyLabel) · \(formattedNextDue)").font(.system(size: 12)).foregroundStyle(Color.bobInk2)
                     if let badge = dueBadge {
                         Text(badge.label).font(.system(size: 10, weight: .semibold)).foregroundStyle(badge.color)
                             .padding(.horizontal, 6).padding(.vertical, 2)
@@ -407,7 +422,7 @@ struct RecurringCard: View {
             Spacer()
             VStack(alignment: .trailing, spacing: 3) {
                 Text(prefixedAmount).font(.system(size: 15, weight: .semibold)).monospacedDigit().foregroundStyle(kindColor)
-                Text(isInactive ? "Paused" : monthlyCostLabel).font(.system(size: 10)).foregroundStyle(Color.bobInk3)
+                Text(isInactive ? "Paused" : monthlyCostLabel).font(.system(size: 10)).foregroundStyle(Color.bobInk2)
             }
             Button {
                 recurring.isActive.toggle()

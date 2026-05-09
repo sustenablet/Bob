@@ -376,7 +376,7 @@ struct TransactionsListView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(cat.name).font(.system(size: 14, weight: .semibold)).foregroundStyle(Color.bobInk)
                 Text("\(summary.count) transactions · \(CurrencyFormatter.string(summary.avg, code: currencyCode)) avg")
-                    .font(.system(size: 12)).foregroundStyle(Color.bobInk3)
+                    .font(.system(size: 12)).foregroundStyle(Color.bobInk2)
             }
             Spacer()
             Text(CurrencyFormatter.string(summary.total, code: currencyCode))
@@ -420,7 +420,7 @@ struct TransactionsListView: View {
         VStack(spacing: 16) {
             Spacer()
             Image(systemName: searchText.isEmpty && activeFilters == 0 ? "tray" : "magnifyingglass")
-                .font(.system(size: 52)).foregroundStyle(Color.bobInk3)
+                .font(.system(size: 52)).foregroundStyle(Color.bobInk2)
             Text(searchText.isEmpty && activeFilters == 0 ? "No transactions yet" : "No results")
                 .font(.system(size: 18, weight: .semibold)).foregroundStyle(Color.bobInk)
             Text(searchText.isEmpty && activeFilters == 0

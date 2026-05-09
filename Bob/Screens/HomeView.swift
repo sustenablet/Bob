@@ -467,7 +467,7 @@ struct HomeView: View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 4) {
                 Image(systemName: icon).font(.system(size: 11)).foregroundStyle(iconColor)
-                Text(label).font(.system(size: 11)).foregroundStyle(Color.bobInk3)
+                Text(label).font(.system(size: 11)).foregroundStyle(Color.bobInk2)
             }
             Text(value)
                 .font(.system(size: 17, weight: .bold))
@@ -492,7 +492,7 @@ struct HomeView: View {
             .frame(height: 8)
             HStack {
                 Text("\(Int(budgetProgress * 100))% of \(CurrencyFormatter.string(monthlyBudget, code: currencyCode))")
-                    .font(.system(size: 11)).foregroundStyle(Color.bobInk3)
+                    .font(.system(size: 11)).foregroundStyle(Color.bobInk2)
                 Spacer()
                 let remaining = budgetRemaining
                 Text(remaining >= 0
@@ -547,7 +547,7 @@ struct HomeView: View {
                                         .foregroundStyle(Color.bobInk)
                                     Text(CurrencyFormatter.string(cat.amount, code: currencyCode))
                                         .font(.system(size: 11))
-                                        .foregroundStyle(Color.bobInk3)
+                                        .foregroundStyle(Color.bobInk2)
                                         .monospacedDigit()
                                 }
                             }
@@ -598,7 +598,7 @@ struct HomeView: View {
                     .font(.system(size: 18, weight: .semibold)).foregroundStyle(Color.bobInk)
                 Spacer()
                 Button { onSwitchTab?(.goals) } label: {
-                    Text("See All").font(.system(size: 14)).foregroundStyle(Color.bobInk3)
+                    Text("See All").font(.system(size: 14)).foregroundStyle(Color.bobInk2)
                 }.buttonStyle(.plain)
             }
             VStack(spacing: Spacing.s) {
@@ -630,7 +630,7 @@ struct HomeView: View {
                     Text(CurrencyFormatter.string(goal.totalSaved, code: currencyCode))
                         .font(.system(size: 12)).foregroundStyle(Color.bobInk2)
                     Text("of \(CurrencyFormatter.string(goal.targetAmount, code: currencyCode))")
-                        .font(.system(size: 12)).foregroundStyle(Color.bobInk3)
+                        .font(.system(size: 12)).foregroundStyle(Color.bobInk2)
                     Spacer()
                     let isOverdue = !goal.isCompleted && Date() > goal.deadline
                     Text(isOverdue ? "Overdue" : "\(goal.daysLeft)d left")
@@ -654,7 +654,7 @@ struct HomeView: View {
                     .font(.system(size: 18, weight: .semibold)).foregroundStyle(Color.bobInk)
                 Spacer()
                 Button { onSwitchTab?(.recurring) } label: {
-                    Text("See All").font(.system(size: 14)).foregroundStyle(Color.bobInk3)
+                    Text("See All").font(.system(size: 14)).foregroundStyle(Color.bobInk2)
                 }.buttonStyle(.plain)
             }
 
@@ -715,7 +715,7 @@ struct HomeView: View {
                     .font(.system(size: 18, weight: .semibold)).foregroundStyle(Color.bobInk)
                 Spacer()
                 Button { goToHistory = true } label: {
-                    Text("See All").font(.system(size: 14)).foregroundStyle(Color.bobInk3)
+                    Text("See All").font(.system(size: 14)).foregroundStyle(Color.bobInk2)
                 }.buttonStyle(.plain)
             }
 
@@ -811,9 +811,9 @@ struct HomeView: View {
                     .font(.system(size: 15, weight: .semibold)).foregroundStyle(Color.bobInk).lineLimit(1)
                 HStack(spacing: 4) {
                     Text(tx.category?.name ?? (isIncome ? "Income" : "Other"))
-                        .font(.system(size: 12)).foregroundStyle(Color.bobInk3)
+                        .font(.system(size: 12)).foregroundStyle(Color.bobInk2)
                     if let note = tx.note, !note.isEmpty {
-                        Text("· \(note)").font(.system(size: 12)).foregroundStyle(Color.bobInk3).lineLimit(1)
+                        Text("· \(note)").font(.system(size: 12)).foregroundStyle(Color.bobInk2).lineLimit(1)
                     }
                 }
             }
@@ -856,7 +856,7 @@ struct HomeView: View {
                         RoundedRectangle(cornerRadius: 3)
                             .fill(bar.amount > 0 ? Color.bobDebit.opacity(0.7) : Color.bobHairline)
                             .frame(height: Swift.max(barH, 2))
-                        Text(bar.label).font(.system(size: 9)).foregroundStyle(Color.bobInk3)
+                        Text(bar.label).font(.system(size: 9)).foregroundStyle(Color.bobInk2)
                     }
                     .frame(maxWidth: .infinity)
                 }
@@ -890,7 +890,7 @@ struct HomeView: View {
                             Spacer()
                             Text(CurrencyFormatter.string(source.amount, code: currencyCode))
                                 .font(.system(size: 13, weight: .semibold)).monospacedDigit().foregroundStyle(Color.bobAccent)
-                            Text("\(pct)%").font(.system(size: 11)).foregroundStyle(Color.bobInk3).frame(width: 32, alignment: .trailing)
+                            Text("\(pct)%").font(.system(size: 11)).foregroundStyle(Color.bobInk2).frame(width: 32, alignment: .trailing)
                         }
                         GeometryReader { geo in
                             ZStack(alignment: .leading) {
@@ -924,7 +924,7 @@ struct HomeView: View {
                             .font(.system(size: 15, weight: .semibold)).foregroundStyle(Color.bobInk)
                         Spacer()
                         Text(hasTodayData ? "\(todaysTransactions.count) items" : "No activity yet")
-                            .font(.system(size: 12)).foregroundStyle(Color.bobInk3)
+                            .font(.system(size: 12)).foregroundStyle(Color.bobInk2)
                     }
                     if hasTodayData {
                         HStack(spacing: 0) {
@@ -938,7 +938,7 @@ struct HomeView: View {
                         if let last = todaysTransactions.first {
                             HStack(spacing: 8) {
                                 Image(systemName: last.category?.sfSymbol ?? "circle.dashed")
-                                    .font(.system(size: 12)).foregroundStyle(Color.bobInk3)
+                                    .font(.system(size: 12)).foregroundStyle(Color.bobInk2)
                                 Text(displayTitle(for: last))
                                     .font(.system(size: 12)).foregroundStyle(Color.bobInk2).lineLimit(1)
                                 Spacer()
@@ -949,7 +949,7 @@ struct HomeView: View {
                         }
                     } else {
                         Text("Tap + to log a transaction")
-                            .font(.system(size: 13)).foregroundStyle(Color.bobInk3)
+                            .font(.system(size: 13)).foregroundStyle(Color.bobInk2)
                     }
                 }
                 .padding(Spacing.m)
@@ -1038,11 +1038,11 @@ struct HomeView: View {
             .frame(height: 70)
 
             HStack {
-                Text("1").font(.system(size: 10)).foregroundStyle(Color.bobInk3)
+                Text("1").font(.system(size: 10)).foregroundStyle(Color.bobInk2)
                 Spacer()
-                Text("\(daysInMonth / 2)").font(.system(size: 10)).foregroundStyle(Color.bobInk3)
+                Text("\(daysInMonth / 2)").font(.system(size: 10)).foregroundStyle(Color.bobInk2)
                 Spacer()
-                Text("\(daysInMonth)").font(.system(size: 10)).foregroundStyle(Color.bobInk3)
+                Text("\(daysInMonth)").font(.system(size: 10)).foregroundStyle(Color.bobInk2)
             }
         }
         .padding(Spacing.m)

@@ -567,7 +567,7 @@ struct TemplatesView: View {
     private var emptyState: some View {
         VStack(spacing: 16) {
             Spacer()
-            Image(systemName: "bolt.circle").font(.system(size: 52)).foregroundStyle(Color.bobInk3)
+            Image(systemName: "bolt.circle").font(.system(size: 52)).foregroundStyle(Color.bobInk2)
             Text("No templates yet").font(.system(size: 18, weight: .semibold)).foregroundStyle(Color.bobInk)
             Text("Templates let you add frequent\ntransactions with one tap")
                 .font(.bobBody).foregroundStyle(Color.bobInk2).multilineTextAlignment(.center)

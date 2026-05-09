@@ -29,7 +29,7 @@ struct ExpenseRow: View {
                 if let secondary = secondaryText {
                     Text(secondary)
                         .font(.bobCaption)
-                        .foregroundStyle(Color.bobInk3)
+                        .foregroundStyle(Color.bobInk2)
                         .lineLimit(1)
                 }
             }

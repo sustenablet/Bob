@@ -38,7 +38,7 @@ struct CategoryTransactionsView: View {
             if filtered.isEmpty {
                 VStack(spacing: 16) {
                     Spacer()
-                    Image(systemName: symbol).font(.system(size: 48)).foregroundStyle(Color.bobInk3)
+                    Image(systemName: symbol).font(.system(size: 48)).foregroundStyle(Color.bobInk2)
                     Text("No transactions").font(.system(size: 18, weight: .semibold)).foregroundStyle(Color.bobInk)
                     Text("No \(categoryName.lowercased()) transactions for this period")
                         .font(.bobBody).foregroundStyle(Color.bobInk2).multilineTextAlignment(.center)
@@ -83,7 +83,7 @@ struct CategoryTransactionsView: View {
                         .foregroundStyle(Color.bobInk)
                     Text("\(period.label) · \(CurrencyFormatter.string(total, code: currencyCode))")
                         .font(.system(size: 11))
-                        .foregroundStyle(Color.bobInk3)
+                        .foregroundStyle(Color.bobInk2)
                 }
             }
         }

@@ -46,7 +46,7 @@ struct OnboardingView: View {
                     if currentPage < pages.count - 1 {
                         Button("Skip") { isPresented = false }
                             .font(.system(size: 15))
-                            .foregroundStyle(Color.bobInk3)
+                            .foregroundStyle(Color.bobInk2)
                             .padding(.trailing, Spacing.pageMargin)
                             .padding(.top, 16)
                     }

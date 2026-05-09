@@ -55,12 +55,11 @@ struct ContentView: View {
     }
 
     private var bottomBar: some View {
-        HStack(alignment: .center) {
+        HStack(alignment: .center, spacing: 10) {
             FloatingTabBar(selected: Binding(
                 get: { selectedTab },
                 set: { switchTab(to: $0) }
             ))
-            Spacer(minLength: 12)
             AddFAB { isAddingTransaction = true }
         }
     }
