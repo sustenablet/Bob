@@ -6,141 +6,444 @@ struct RecurringTransactionsView: View {
     @Query(sort: \RecurringTransaction.nextDueDate) private var recurrings: [RecurringTransaction]
     @Query(sort: \BudgetSettings.monthlyBudget) private var settingsList: [BudgetSettings]
 
-    @State private var showAddRecurring   = false
+    @State private var selectedTab: RecurTab = .upcoming
+    @State private var showAddRecurring = false
     @State private var editingRecurring: RecurringTransaction?
     @State private var deletingRecurring: RecurringTransaction?
-    @State private var expandedCategories: Set<String> = []
+
+    enum RecurTab { case upcoming, all }
 
     private var currencyCode: String { settingsList.first?.currencyCode ?? "USD" }
-    private var activeRecurrings:   [RecurringTransaction] { recurrings.filter { $0.isActive } }
+    private var activeRecurrings: [RecurringTransaction] { recurrings.filter { $0.isActive } }
     private var inactiveRecurrings: [RecurringTransaction] { recurrings.filter { !$0.isActive } }
-
-    // MARK: – Computed
 
     private func monthlyEquivalent(_ r: RecurringTransaction) -> Decimal {
         switch r.frequency {
-        case .weekly:    return r.amount * 4
-        case .biweekly:  return r.amount * 2
-        case .monthly:   return r.amount
-        case .yearly:    return r.amount / 12
+        case .weekly: return r.amount * 4
+        case .biweekly: return r.amount * 2
+        case .monthly: return r.amount
+        case .yearly: return r.amount / 12
         }
     }
 
-    private func annualEquivalent(_ r: RecurringTransaction) -> Decimal {
-        switch r.frequency {
-        case .weekly:    return r.amount * 52
-        case .biweekly:  return r.amount * 26
-        case .monthly:   return r.amount * 12
-        case .yearly:    return r.amount
-        }
+    // Items due in next 7 days
+    private var dueSoon: [RecurringTransaction] {
+        let cutoff = Calendar.current.date(byAdding: .day, value: 7, to: Date()) ?? Date()
+        return recurrings.filter { $0.isActive && $0.nextDueDate <= cutoff }
+            .sorted { $0.nextDueDate < $1.nextDueDate }
     }
 
-    private var monthlyOut: Decimal { activeRecurrings.filter { $0.kind == .expense }.reduce(0) { $0 + monthlyEquivalent($1) } }
-    private var monthlyIn: Decimal  { activeRecurrings.filter { $0.kind == .income  }.reduce(0) { $0 + monthlyEquivalent($1) } }
-    private var annualNet: Decimal  { (monthlyIn - monthlyOut) * 12 }
-    private var annualOut: Decimal  { activeRecurrings.filter { $0.kind == .expense }.reduce(0) { $0 + annualEquivalent($1) } }
-    private var annualIn: Decimal   { activeRecurrings.filter { $0.kind == .income  }.reduce(0) { $0 + annualEquivalent($1) } }
-
-    private var largestExpense: RecurringTransaction? {
-        activeRecurrings.filter { $0.kind == .expense }.max { monthlyEquivalent($0) < monthlyEquivalent($1) }
+    // Items due next 8–30 days
+    private var dueLater: [RecurringTransaction] {
+        let start = Calendar.current.date(byAdding: .day, value: 7, to: Date()) ?? Date()
+        let end   = Calendar.current.date(byAdding: .day, value: 30, to: Date()) ?? Date()
+        return recurrings.filter { $0.isActive && $0.nextDueDate > start && $0.nextDueDate <= end }
+            .sorted { $0.nextDueDate < $1.nextDueDate }
     }
 
-    // 30-day upcoming payments
-    private var upcoming30: [RecurringTransaction] {
-        let cutoff = Calendar.current.date(byAdding: .day, value: 30, to: Date()) ?? Date()
-        return activeRecurrings.filter { $0.nextDueDate <= cutoff }.sorted { $0.nextDueDate < $1.nextDueDate }
-    }
+    private var dueSoonTotal: Decimal { dueSoon.reduce(0) { $0 + $1.amount } }
 
-    private var upcoming30Total: Decimal { upcoming30.reduce(0) { $0 + $1.amount } }
-
-    // Category-grouped active recurrings
-    private var activeByCategory: [(category: String, items: [RecurringTransaction], total: Decimal)] {
-        let grouped = Dictionary(grouping: activeRecurrings) { r -> String in r.category?.name ?? "Uncategorized" }
-        return grouped.map { key, items in
-            (category: key, items: items.sorted { monthlyEquivalent($0) > monthlyEquivalent($1) },
-             total: items.reduce(0) { $0 + monthlyEquivalent($1) })
-        }
-        .sorted { $0.total > $1.total }
-    }
+    // MARK: – Body
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                Color.bobBackground.ignoresSafeArea()
+        ZStack {
+            Color.bobBackground.ignoresSafeArea()
+            VStack(spacing: 0) {
+                topBar
+                tabPicker
+                    .padding(.top, 4)
+                Divider().background(Color.bobHairline)
 
                 if recurrings.isEmpty {
                     emptyState
                 } else {
-                    ScrollView {
-                        VStack(spacing: Spacing.m) {
-                            // Page header
-                            HStack {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("Recurring")
-                                        .font(.system(size: 28, weight: .bold)).foregroundStyle(Color.bobInk)
-                                    Text("\(activeRecurrings.count) active · \(inactiveRecurrings.count) paused")
-                                        .font(.system(size: 14)).foregroundStyle(Color.bobInk2)
-                                }
-                                Spacer()
-                                Button { showAddRecurring = true } label: {
-                                    ZStack {
-                                        Circle().fill(Color.bobInk).frame(width: 36, height: 36)
-                                        Image(systemName: "plus").font(.system(size: 16, weight: .bold)).foregroundStyle(.white)
-                                    }
-                                }
-                            }
-                            .padding(.top, 8)
-
-                            summaryStrip
-                            if !upcoming30.isEmpty { upcomingCalendarSection }
-                            if !activeRecurrings.isEmpty { activeSection }
-                            if !inactiveRecurrings.isEmpty { pausedSection }
-                            annualProjectionCard
+                    ScrollView(showsIndicators: false) {
+                        if selectedTab == .upcoming {
+                            upcomingContent
+                        } else {
+                            allContent
                         }
-                        .padding(.horizontal, Spacing.pageMargin)
-                        .padding(.top, Spacing.m)
-                        .padding(.bottom, 100)
                     }
                 }
             }
-            .navigationBarHidden(true)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button { showAddRecurring = true } label: {
-                        Image(systemName: "plus").font(.system(size: 18, weight: .medium)).foregroundStyle(Color.bobInk)
-                    }
-                }
+        }
+        .navigationBarHidden(true)
+        .sheet(isPresented: $showAddRecurring) { AddRecurringSheet(currencyCode: currencyCode) }
+        .sheet(item: $editingRecurring) { r in AddRecurringSheet(currencyCode: currencyCode, recurringToEdit: r) }
+        .alert("Delete Recurring", isPresented: .init(
+            get: { deletingRecurring != nil },
+            set: { if !$0 { deletingRecurring = nil } }
+        )) {
+            Button("Cancel", role: .cancel) { deletingRecurring = nil }
+            Button("Delete", role: .destructive) {
+                if let r = deletingRecurring { modelContext.delete(r); try? modelContext.save() }
+                deletingRecurring = nil
             }
-            .sheet(isPresented: $showAddRecurring) { AddRecurringSheet(currencyCode: currencyCode) }
-            .sheet(item: $editingRecurring) { r in AddRecurringSheet(currencyCode: currencyCode, recurringToEdit: r) }
-            .alert("Delete Recurring", isPresented: .init(get: { deletingRecurring != nil }, set: { if !$0 { deletingRecurring = nil } })) {
-                Button("Cancel", role: .cancel) { deletingRecurring = nil }
-                Button("Delete", role: .destructive) {
-                    if let r = deletingRecurring { modelContext.delete(r); try? modelContext.save() }
-                    deletingRecurring = nil
+        } message: { Text("This won't delete past transactions created from this rule.") }
+    }
+
+    // MARK: – Top bar
+
+    private var topBar: some View {
+        HStack {
+            Button { } label: {
+                Image(systemName: "gearshape")
+                    .font(.system(size: 20))
+                    .foregroundStyle(Color.bobInk2)
+                    .frame(width: 36, height: 36)
+            }.buttonStyle(.plain)
+
+            Spacer()
+            Text("Recurring").font(.system(size: 18, weight: .semibold)).foregroundStyle(Color.bobInk)
+            Spacer()
+
+            Button { showAddRecurring = true } label: {
+                ZStack {
+                    Circle().stroke(Color.bobInk2, lineWidth: 1.5).frame(width: 30, height: 30)
+                    Image(systemName: "plus").font(.system(size: 14, weight: .semibold)).foregroundStyle(Color.bobInk)
                 }
-            } message: { Text("This won't delete past transactions already created from this rule.") }
+            }.buttonStyle(.plain)
+        }
+        .padding(.horizontal, Spacing.pageMargin)
+        .padding(.vertical, 14)
+    }
+
+    // MARK: – Tab picker
+
+    private var tabPicker: some View {
+        HStack(spacing: 0) {
+            tabButton("Upcoming", tab: .upcoming)
+            tabButton("All", tab: .all)
         }
     }
 
-    // MARK: – Summary strip
-
-    private var summaryStrip: some View {
-        HStack(spacing: 0) {
-            summaryCell(label: "Monthly out", value: CurrencyFormatter.compact(monthlyOut, code: currencyCode), color: .bobDebit)
-            Divider().frame(height: 36)
-            summaryCell(label: "Monthly in",  value: CurrencyFormatter.compact(monthlyIn,  code: currencyCode), color: .bobAccent)
-            Divider().frame(height: 36)
-            summaryCell(
-                label: "Annual net",
-                value: (annualNet >= 0 ? "+" : "") + CurrencyFormatter.compact(annualNet, code: currencyCode),
-                color: annualNet >= 0 ? .bobAccent : .bobDebit
-            )
+    private func tabButton(_ label: String, tab: RecurTab) -> some View {
+        Button { withAnimation(.easeOut(duration: 0.15)) { selectedTab = tab } } label: {
+            VStack(spacing: 8) {
+                Text(label)
+                    .font(.system(size: 15, weight: selectedTab == tab ? .semibold : .regular))
+                    .foregroundStyle(selectedTab == tab ? Color.bobInk : Color.bobInk2)
+                Rectangle()
+                    .fill(selectedTab == tab ? Color.bobInk : Color.clear)
+                    .frame(height: 2)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, Spacing.pageMargin)
         }
-        .padding(.vertical, 14)
+        .buttonStyle(.plain)
+    }
+
+    // MARK: – Upcoming content
+
+    private var upcomingContent: some View {
+        VStack(spacing: Spacing.m) {
+            comingUpCard
+                .padding(.horizontal, Spacing.pageMargin)
+                .padding(.top, Spacing.m)
+
+            netMonthlyCard
+                .padding(.horizontal, Spacing.pageMargin)
+
+            if !dueSoon.isEmpty {
+                dueSoonSection
+            }
+            if !dueLater.isEmpty {
+                dueLaterSection
+            }
+
+            Spacer().frame(height: 100)
+        }
+    }
+
+    // MARK: – "Coming up" card with mini calendar
+
+    private var comingUpCard: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Coming up")
+                        .font(.system(size: 22, weight: .bold))
+                        .foregroundStyle(Color.bobInk)
+                    if dueSoon.isEmpty {
+                        Text("No recurring charges in the next 7 days.")
+                            .font(.system(size: 14))
+                            .foregroundStyle(Color.bobInk2)
+                    } else {
+                        Text("You have \(dueSoon.count) recurring charge\(dueSoon.count == 1 ? "" : "s") for \(CurrencyFormatter.string(dueSoonTotal, code: currencyCode)) in the next 7 days.")
+                            .font(.system(size: 14))
+                            .foregroundStyle(Color.bobInk2)
+                    }
+                }
+                Spacer()
+                Image(systemName: "arrow.up.right")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Color.bobInk2)
+            }
+
+            miniCalendar
+        }
+        .padding(Spacing.m)
         .background(Color.bobSurface)
-        .clipShape(RoundedRectangle(cornerRadius: 14))
-        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.bobHairline, lineWidth: 1))
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+
+    // MARK: – Mini calendar
+
+    private var miniCalendar: some View {
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: Date())
+        // Find the Sunday of the current week
+        let weekday = cal.component(.weekday, from: today) // 1=Sun
+        let startOfWeek = cal.date(byAdding: .day, value: -(weekday - 1), to: today)!
+        let days: [Date] = (0..<14).compactMap { cal.date(byAdding: .day, value: $0, to: startOfWeek) }
+        let dayLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+
+        // Map of due dates → recurring items
+        var dueDates: [Date: [RecurringTransaction]] = [:]
+        for r in activeRecurrings {
+            let d = cal.startOfDay(for: r.nextDueDate)
+            dueDates[d, default: []].append(r)
+        }
+
+        return VStack(spacing: 6) {
+            // Day headers
+            HStack(spacing: 0) {
+                ForEach(dayLabels, id: \.self) { label in
+                    Text(label)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(Color.bobInk2)
+                        .frame(maxWidth: .infinity)
+                }
+            }
+
+            // Two rows of 7 days
+            VStack(spacing: 4) {
+                ForEach(0..<2, id: \.self) { row in
+                    HStack(spacing: 0) {
+                        ForEach(0..<7, id: \.self) { col in
+                            let day = days[row * 7 + col]
+                            let isToday = cal.isDateInToday(day)
+                            let items = dueDates[day] ?? []
+                            let hasIncome = items.contains { $0.kind == .income }
+                            let hasExpense = items.contains { $0.kind == .expense }
+
+                            ZStack(alignment: .bottom) {
+                                // Day circle
+                                ZStack {
+                                    if isToday {
+                                        Circle()
+                                            .fill(Color.bobChartBlue)
+                                            .frame(width: 32, height: 32)
+                                    }
+                                    Text("\(cal.component(.day, from: day))")
+                                        .font(.system(size: 14, weight: isToday ? .bold : .regular))
+                                        .foregroundStyle(isToday ? .white : Color.bobInk)
+                                }
+
+                                // Indicator dot / icon for items due on this day
+                                if !items.isEmpty {
+                                    HStack(spacing: 2) {
+                                        if hasIncome {
+                                            Circle().fill(Color.bobAccent).frame(width: 5, height: 5)
+                                        }
+                                        if hasExpense {
+                                            Circle().fill(Color.bobDebit).frame(width: 5, height: 5)
+                                        }
+                                    }
+                                    .offset(y: 18)
+                                }
+                            }
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 42)
+                        }
+                    }
+                }
+            }
+        }
+        .padding(Spacing.s)
+        .background(Color.bobSurface2)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    // MARK: – Net monthly card
+
+    private var netMonthlyCard: some View {
+        let monthlyOut = activeRecurrings.filter { $0.kind == .expense }.reduce(Decimal(0)) { $0 + monthlyEquivalent($1) }
+        let monthlyIn  = activeRecurrings.filter { $0.kind == .income  }.reduce(Decimal(0)) { $0 + monthlyEquivalent($1) }
+        let net = monthlyIn - monthlyOut
+
+        return HStack(spacing: 14) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Monthly Net")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(Color.bobInk)
+                Text("Based on your active recurring rules")
+                    .font(.system(size: 13))
+                    .foregroundStyle(Color.bobInk2)
+                    .lineLimit(2)
+            }
+            Spacer()
+            VStack(alignment: .trailing, spacing: 2) {
+                Text((net >= 0 ? "+" : "") + CurrencyFormatter.string(net, code: currencyCode))
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(net >= 0 ? Color.bobAccent : Color.bobDebit)
+                    .monospacedDigit()
+                Text("per month")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Color.bobInk2)
+            }
+        }
+        .padding(Spacing.m)
+        .background(Color.bobSurface)
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+    }
+
+    // MARK: – Due soon section
+
+    private var dueSoonSection: some View {
+        VStack(alignment: .leading, spacing: Spacing.s) {
+            Text("DUE SOON")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(Color.bobInk2)
+                .tracking(0.8)
+                .padding(.horizontal, Spacing.pageMargin)
+
+            VStack(spacing: Spacing.s) {
+                ForEach(dueSoon) { r in recurringRow(r) }
+            }
+            .padding(.horizontal, Spacing.pageMargin)
+        }
+    }
+
+    // MARK: – Due later section
+
+    private var dueLaterSection: some View {
+        VStack(alignment: .leading, spacing: Spacing.s) {
+            Text("COMING UP")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(Color.bobInk2)
+                .tracking(0.8)
+                .padding(.horizontal, Spacing.pageMargin)
+
+            VStack(spacing: Spacing.s) {
+                ForEach(dueLater) { r in recurringRow(r) }
+            }
+            .padding(.horizontal, Spacing.pageMargin)
+        }
+    }
+
+    // MARK: – Recurring row
+
+    private func recurringRow(_ r: RecurringTransaction) -> some View {
+        let isIncome = r.kind == .income
+        let color: Color = isIncome ? Color.bobAccent : Color.bobDebit
+        let cal = Calendar.current
+        let daysUntil = cal.dateComponents([.day], from: cal.startOfDay(for: Date()),
+            to: cal.startOfDay(for: r.nextDueDate)).day ?? 0
+        let subtitle = daysUntil <= 0 ? "Due today" : "in \(daysUntil) day\(daysUntil == 1 ? "" : "s")"
+
+        return HStack(spacing: 14) {
+            // Icon
+            ZStack {
+                Circle()
+                    .fill(color.opacity(0.18))
+                    .frame(width: 46, height: 46)
+                Image(systemName: isIncome ? "dollarsign" : (r.category?.sfSymbol ?? "arrow.up"))
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(color)
+            }
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(r.name)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Color.bobInk)
+                    .lineLimit(1)
+                Text(subtitle)
+                    .font(.system(size: 13))
+                    .foregroundStyle(daysUntil <= 0 ? Color.bobDebit : Color.bobInk2)
+            }
+
+            Spacer()
+
+            Text((isIncome ? "+" : "") + CurrencyFormatter.string(r.amount, code: currencyCode))
+                .font(.system(size: 15, weight: .semibold))
+                .monospacedDigit()
+                .foregroundStyle(isIncome ? Color.bobAccent : Color.bobInk)
+
+            Menu {
+                Button { editingRecurring = r } label: { Label("Edit", systemImage: "pencil") }
+                Button {
+                    r.isActive.toggle(); try? modelContext.save(); HapticManager.light()
+                } label: {
+                    Label(r.isActive ? "Pause" : "Resume", systemImage: r.isActive ? "pause.circle" : "play.circle")
+                }
+                Divider()
+                Button(role: .destructive) { deletingRecurring = r } label: { Label("Delete", systemImage: "trash") }
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(Color.bobInk2)
+                    .frame(width: 28, height: 28)
+            }
+        }
+        .padding(Spacing.m)
+        .background(Color.bobSurface)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+
+    // MARK: – All tab content
+
+    private var allContent: some View {
+        VStack(spacing: Spacing.m) {
+            // Summary strip
+            HStack(spacing: 0) {
+                summaryCell(label: "Monthly out",
+                            value: CurrencyFormatter.compact(
+                                activeRecurrings.filter { $0.kind == .expense }.reduce(0) { $0 + monthlyEquivalent($1) },
+                                code: currencyCode),
+                            color: Color.bobDebit)
+                Divider().frame(height: 36).background(Color.bobHairline)
+                summaryCell(label: "Monthly in",
+                            value: CurrencyFormatter.compact(
+                                activeRecurrings.filter { $0.kind == .income }.reduce(0) { $0 + monthlyEquivalent($1) },
+                                code: currencyCode),
+                            color: Color.bobAccent)
+                Divider().frame(height: 36).background(Color.bobHairline)
+                let ann = (activeRecurrings.filter { $0.kind == .income }.reduce(Decimal(0)) { $0 + monthlyEquivalent($1) }
+                         - activeRecurrings.filter { $0.kind == .expense }.reduce(Decimal(0)) { $0 + monthlyEquivalent($1) }) * 12
+                summaryCell(label: "Annual net",
+                            value: (ann >= 0 ? "+" : "") + CurrencyFormatter.compact(ann, code: currencyCode),
+                            color: ann >= 0 ? Color.bobAccent : Color.bobDebit)
+            }
+            .padding(.vertical, 12)
+            .background(Color.bobSurface)
+            .clipShape(RoundedRectangle(cornerRadius: 14))
+            .padding(.horizontal, Spacing.pageMargin)
+            .padding(.top, Spacing.m)
+
+            if !activeRecurrings.isEmpty {
+                sectionBlock("ACTIVE — \(activeRecurrings.count)", items: activeRecurrings)
+            }
+            if !inactiveRecurrings.isEmpty {
+                sectionBlock("PAUSED — \(inactiveRecurrings.count)", items: inactiveRecurrings)
+            }
+
+            Spacer().frame(height: 100)
+        }
+    }
+
+    private func sectionBlock(_ title: String, items: [RecurringTransaction]) -> some View {
+        VStack(alignment: .leading, spacing: Spacing.s) {
+            Text(title)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(Color.bobInk2)
+                .tracking(0.8)
+                .padding(.horizontal, Spacing.pageMargin)
+            VStack(spacing: Spacing.s) {
+                ForEach(items) { r in recurringRow(r) }
+            }
+            .padding(.horizontal, Spacing.pageMargin)
+        }
     }
 
     private func summaryCell(label: String, value: String, color: Color) -> some View {
@@ -151,213 +454,14 @@ struct RecurringTransactionsView: View {
         .frame(maxWidth: .infinity)
     }
 
-    // MARK: – 30-day payment calendar
-
-    private var upcomingCalendarSection: some View {
-        VStack(alignment: .leading, spacing: Spacing.m) {
-            HStack {
-                Text("Next 30 Days").font(.system(size: 16, weight: .semibold)).foregroundStyle(Color.bobInk)
-                Spacer()
-                Text(CurrencyFormatter.string(upcoming30Total, code: currencyCode))
-                    .font(.system(size: 14, weight: .semibold)).monospacedDigit().foregroundStyle(Color.bobInk2)
-            }
-            VStack(spacing: 0) {
-                ForEach(Array(upcoming30.enumerated()), id: \.element.id) { idx, r in
-                    calendarRow(r)
-                    if idx < upcoming30.count - 1 { Divider().padding(.leading, 52) }
-                }
-            }
-            .background(Color.bobSurface)
-            .clipShape(RoundedRectangle(cornerRadius: 14))
-            .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.bobHairline, lineWidth: 1))
-        }
-    }
-
-    private func calendarRow(_ r: RecurringTransaction) -> some View {
-        let cal = Calendar.current
-        let days = cal.dateComponents([.day], from: cal.startOfDay(for: Date()), to: cal.startOfDay(for: r.nextDueDate)).day ?? 0
-        let dotColor: Color = days <= 0 ? .bobDebit : days <= 3 ? .bobDebit : days <= 7 ? Color.bobHex(0xF59E0B) : Color.bobInk3
-        let isIncome = r.kind == .income
-        let df = DateFormatter(); df.dateFormat = "MMM d"
-
-        return Button { editingRecurring = r } label: {
-            HStack(spacing: 12) {
-                Text(df.string(from: r.nextDueDate))
-                    .font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.bobInk2).frame(width: 40)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(r.name).font(.system(size: 14, weight: .medium)).foregroundStyle(Color.bobInk).lineLimit(1)
-                    if let cat = r.category?.name { Text(cat).font(.system(size: 11)).foregroundStyle(Color.bobInk2) }
-                }
-                Spacer()
-                Text((isIncome ? "+" : "") + CurrencyFormatter.string(r.amount, code: currencyCode))
-                    .font(.system(size: 14, weight: .semibold)).monospacedDigit()
-                    .foregroundStyle(isIncome ? Color.bobAccent : Color.bobInk)
-                Circle().fill(dotColor).frame(width: 8, height: 8)
-            }
-            .padding(.horizontal, Spacing.m).padding(.vertical, 12)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-    }
-
-    // MARK: – Active section (category-grouped)
-
-    private var activeSection: some View {
-        VStack(alignment: .leading, spacing: Spacing.s) {
-            sectionHeader("Active — \(activeRecurrings.count)")
-            ForEach(activeByCategory, id: \.category) { group in
-                categoryGroup(group)
-            }
-        }
-    }
-
-    private func categoryGroup(_ group: (category: String, items: [RecurringTransaction], total: Decimal)) -> some View {
-        let isExpanded = expandedCategories.contains(group.category) || activeByCategory.count == 1
-        return VStack(spacing: Spacing.xs) {
-            // Group header
-            if activeByCategory.count > 1 {
-                Button {
-                    withAnimation {
-                        if expandedCategories.contains(group.category) {
-                            expandedCategories.remove(group.category)
-                        } else {
-                            expandedCategories.insert(group.category)
-                        }
-                    }
-                } label: {
-                    HStack {
-                        Text(group.category)
-                            .font(.system(size: 12, weight: .semibold)).foregroundStyle(Color.bobInk2)
-                            .textCase(.uppercase).tracking(0.5)
-                        Spacer()
-                        Text("≈ \(CurrencyFormatter.compact(group.total, code: currencyCode))/mo")
-                            .font(.system(size: 11)).foregroundStyle(Color.bobInk2)
-                        Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                            .font(.system(size: 10, weight: .semibold)).foregroundStyle(Color.bobInk2)
-                    }
-                }
-                .buttonStyle(.plain)
-            }
-
-            if isExpanded {
-                ForEach(group.items) { r in
-                    RecurringCard(recurring: r, currencyCode: currencyCode)
-                        .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                        .onTapGesture { editingRecurring = r }
-                        .contextMenu { contextMenuItems(for: r) }
-                    // "Log Now" overlay for overdue items
-                    if (Calendar.current.dateComponents([.day], from: Calendar.current.startOfDay(for: Date()), to: Calendar.current.startOfDay(for: r.nextDueDate)).day ?? 0) <= 0 {
-                        Button { logNow(r) } label: {
-                            HStack(spacing: 6) {
-                                Image(systemName: "checkmark.circle.fill").font(.system(size: 13))
-                                Text("Log Now — record this payment")
-                                    .font(.system(size: 13, weight: .medium))
-                            }
-                            .foregroundStyle(Color.bobDebit)
-                            .frame(maxWidth: .infinity).padding(.vertical, 10)
-                            .background(Color.bobDebit.opacity(0.08))
-                            .clipShape(RoundedRectangle(cornerRadius: 10))
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-            }
-        }
-    }
-
-    // MARK: – Paused section
-
-    private var pausedSection: some View {
-        VStack(alignment: .leading, spacing: Spacing.s) {
-            sectionHeader("Paused — \(inactiveRecurrings.count)")
-            ForEach(inactiveRecurrings) { r in
-                RecurringCard(recurring: r, currencyCode: currencyCode, isInactive: true)
-                    .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    .onTapGesture { editingRecurring = r }
-                    .contextMenu { contextMenuItems(for: r) }
-            }
-        }
-    }
-
-    // MARK: – Annual projection card
-
-    private var annualProjectionCard: some View {
-        VStack(alignment: .leading, spacing: Spacing.m) {
-            Text("Annual Projection").font(.system(size: 16, weight: .semibold)).foregroundStyle(Color.bobInk)
-
-            HStack(spacing: 0) {
-                projectionStat(label: "Total out", value: CurrencyFormatter.compact(annualOut, code: currencyCode) + "/yr", color: .bobDebit)
-                Divider().frame(height: 40).padding(.horizontal, Spacing.m)
-                projectionStat(label: "Total in", value: CurrencyFormatter.compact(annualIn, code: currencyCode) + "/yr", color: .bobAccent)
-                Divider().frame(height: 40).padding(.horizontal, Spacing.m)
-                let net = annualIn - annualOut
-                projectionStat(
-                    label: net >= 0 ? "Net surplus" : "Net deficit",
-                    value: (net >= 0 ? "+" : "") + CurrencyFormatter.compact(abs(net as NSDecimalNumber as Decimal), code: currencyCode),
-                    color: net >= 0 ? .bobAccent : .bobDebit
-                )
-            }
-
-            if let largest = largestExpense {
-                HStack(spacing: 8) {
-                    Image(systemName: "arrow.up.circle.fill").font(.system(size: 13)).foregroundStyle(Color.bobDebit)
-                    Text("Largest: \(largest.name) at \(CurrencyFormatter.string(monthlyEquivalent(largest), code: currencyCode))/mo")
-                        .font(.system(size: 12)).foregroundStyle(Color.bobInk2)
-                }
-            }
-        }
-        .padding(Spacing.m)
-        .background(Color.bobSurface)
-        .clipShape(RoundedRectangle(cornerRadius: 14))
-        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.bobHairline, lineWidth: 1))
-    }
-
-    private func projectionStat(label: String, value: String, color: Color) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(label).font(.system(size: 11)).foregroundStyle(Color.bobInk2)
-            Text(value).font(.system(size: 14, weight: .bold)).foregroundStyle(color).lineLimit(1).minimumScaleFactor(0.65)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    // MARK: – Helpers
-
-    private func sectionHeader(_ title: String) -> some View {
-        Text(title).font(.system(size: 12, weight: .semibold))
-            .foregroundStyle(Color.bobInk2).textCase(.uppercase).tracking(0.6)
-    }
-
-    @ViewBuilder
-    private func contextMenuItems(for r: RecurringTransaction) -> some View {
-        Button { editingRecurring = r } label: { Label("Edit", systemImage: "pencil") }
-        Button {
-            r.isActive.toggle()
-            try? modelContext.save()
-            HapticManager.light()
-        } label: {
-            Label(r.isActive ? "Pause" : "Resume", systemImage: r.isActive ? "pause.circle" : "play.circle")
-        }
-        Divider()
-        Button(role: .destructive) { deletingRecurring = r } label: { Label("Delete", systemImage: "trash") }
-    }
-
-    private func logNow(_ r: RecurringTransaction) {
-        let expense = Expense(
-            amount: r.amount, date: r.nextDueDate, note: "Logged from recurring",
-            merchant: nil, category: r.category, kind: r.kind == .income ? .income : .expense
-        )
-        modelContext.insert(expense)
-        r.advanceToNextDueDate()
-        try? modelContext.save()
-        HapticManager.success()
-    }
+    // MARK: – Empty state
 
     private var emptyState: some View {
         VStack(spacing: 20) {
             Spacer()
             ZStack {
-                Circle().fill(Color.bobAccent.opacity(0.1)).frame(width: 100, height: 100)
-                Image(systemName: "arrow.repeat").font(.system(size: 40, weight: .light)).foregroundStyle(Color.bobAccent)
+                Circle().fill(Color.bobSurface).frame(width: 100, height: 100)
+                Image(systemName: "arrow.clockwise").font(.system(size: 40, weight: .light)).foregroundStyle(Color.bobInk2)
             }
             VStack(spacing: 8) {
                 Text("No recurring transactions").font(.system(size: 20, weight: .semibold)).foregroundStyle(Color.bobInk)
@@ -366,104 +470,11 @@ struct RecurringTransactionsView: View {
             }
             Button { showAddRecurring = true } label: {
                 HStack(spacing: 8) { Image(systemName: "plus"); Text("Add Recurring") }
-                    .font(.bobBodyMed).foregroundStyle(.white)
+                    .font(.bobBodyMed).foregroundStyle(.black)
                     .padding(.horizontal, 28).padding(.vertical, 14).background(Color.bobAccent).clipShape(Capsule())
             }
             Spacer()
         }.padding()
-    }
-}
-
-// MARK: – Recurring card
-
-struct RecurringCard: View {
-    @Environment(\.modelContext) private var modelContext
-    let recurring: RecurringTransaction
-    let currencyCode: String
-    var isInactive: Bool = false
-
-    private var kindColor: Color {
-        isInactive ? Color.bobInk3 : (recurring.kind == .income ? Color.bobAccent : Color.bobDebit)
-    }
-
-    private var daysUntilDue: Int {
-        Calendar.current.dateComponents([.day],
-            from: Calendar.current.startOfDay(for: Date()),
-            to: Calendar.current.startOfDay(for: recurring.nextDueDate)).day ?? 0
-    }
-
-    private var dueBadge: (label: String, color: Color)? {
-        guard !isInactive else { return nil }
-        if daysUntilDue <= 0 { return ("Overdue", Color.bobDebit) }
-        if daysUntilDue == 1 { return ("Tomorrow", Color.bobHex(0xF59E0B)) }
-        if daysUntilDue <= 7 { return ("In \(daysUntilDue)d", Color.bobInk3) }
-        return nil
-    }
-
-    var body: some View {
-        HStack(spacing: 14) {
-            ZStack {
-                Circle().fill(kindColor.opacity(0.12)).frame(width: 46, height: 46)
-                Image(systemName: recurring.kind == .income ? "arrow.down.circle.fill" : "arrow.up.circle.fill")
-                    .font(.system(size: 20)).foregroundStyle(kindColor)
-            }
-            VStack(alignment: .leading, spacing: 3) {
-                Text(recurring.name).font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(isInactive ? Color.bobInk3 : Color.bobInk)
-                HStack(spacing: 6) {
-                    Text("\(frequencyLabel) · \(formattedNextDue)").font(.system(size: 12)).foregroundStyle(Color.bobInk2)
-                    if let badge = dueBadge {
-                        Text(badge.label).font(.system(size: 10, weight: .semibold)).foregroundStyle(badge.color)
-                            .padding(.horizontal, 6).padding(.vertical, 2)
-                            .background(Capsule().fill(badge.color.opacity(0.12)))
-                    }
-                }
-            }
-            Spacer()
-            VStack(alignment: .trailing, spacing: 3) {
-                Text(prefixedAmount).font(.system(size: 15, weight: .semibold)).monospacedDigit().foregroundStyle(kindColor)
-                Text(isInactive ? "Paused" : monthlyCostLabel).font(.system(size: 10)).foregroundStyle(Color.bobInk2)
-            }
-            Button {
-                recurring.isActive.toggle()
-                try? modelContext.save()
-                HapticManager.light()
-            } label: {
-                Image(systemName: recurring.isActive ? "pause.circle.fill" : "play.circle.fill")
-                    .font(.system(size: 22))
-                    .foregroundStyle(recurring.isActive ? Color.bobInk3 : Color.bobAccent)
-            }
-            .buttonStyle(.plain).padding(.leading, 4)
-        }
-        .padding(Spacing.m)
-        .background(Color.bobSurface)
-        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Color.bobHairline, lineWidth: 1))
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-    }
-
-    private var frequencyLabel: String {
-        switch recurring.frequency {
-        case .weekly: return "Weekly"; case .biweekly: return "Biweekly"
-        case .monthly: return "Monthly"; case .yearly: return "Yearly"
-        }
-    }
-
-    private var formattedNextDue: String {
-        let f = DateFormatter(); f.dateFormat = "MMM d"; return f.string(from: recurring.nextDueDate)
-    }
-
-    private var prefixedAmount: String {
-        let formatted = CurrencyFormatter.string(recurring.amount, code: currencyCode)
-        return recurring.kind == .income ? "+\(formatted)" : formatted
-    }
-
-    private var monthlyCostLabel: String {
-        switch recurring.frequency {
-        case .weekly:   return "≈ \(CurrencyFormatter.compact(recurring.amount * 4, code: currencyCode))/mo"
-        case .biweekly: return "≈ \(CurrencyFormatter.compact(recurring.amount * 2, code: currencyCode))/mo"
-        case .monthly:  return "\(CurrencyFormatter.compact(recurring.amount, code: currencyCode))/mo"
-        case .yearly:   return "≈ \(CurrencyFormatter.compact(recurring.amount / 12, code: currencyCode))/mo"
-        }
     }
 }
 
