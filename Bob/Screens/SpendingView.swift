@@ -122,11 +122,6 @@ struct SpendingView: View {
             .sorted { $0.amount > $1.amount }
     }
 
-    private var ringProgress: Double {
-        guard maxBarValue > 0 else { return 0 }
-        let ratio = Double((currentExpenses / maxBarValue) as NSDecimalNumber)
-        return min(ratio, 1.0)
-    }
 
     // MARK: – Body
 
@@ -371,16 +366,33 @@ struct SpendingView: View {
 
                 // Category list
                 if !categoryBreakdown.isEmpty {
-                    Divider().background(Color.bobHairline).padding(.horizontal, Spacing.m)
+                    Divider().background(Color.bobHairline).padding(.top, Spacing.s)
+
+                    let visible = Array(categoryBreakdown.prefix(3))
                     VStack(spacing: 0) {
-                        ForEach(Array(categoryBreakdown.enumerated()), id: \.element.name) { idx, cat in
+                        ForEach(Array(visible.enumerated()), id: \.element.name) { idx, cat in
                             categoryRow(cat: cat, idx: idx)
-                            if idx < categoryBreakdown.count - 1 {
-                                Divider().background(Color.bobHairline).padding(.leading, 52)
+                            if idx < visible.count - 1 {
+                                Divider().background(Color.bobHairline).padding(.leading, 58)
                             }
                         }
                     }
-                    .padding(.top, Spacing.xs)
+
+                    // See More button
+                    Button { } label: {
+                        Text("See More")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(Color.bobInk)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 15)
+                            .background(Color.clear)
+                            .clipShape(Capsule())
+                            .overlay(Capsule().stroke(Color.bobInk2.opacity(0.5), lineWidth: 1.5))
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.horizontal, Spacing.m)
+                    .padding(.bottom, Spacing.m)
+                    .padding(.top, Spacing.s)
                 }
             }
             .background(Color.bobSurface)
@@ -389,10 +401,38 @@ struct SpendingView: View {
         }
     }
 
-    // MARK: – Ring chart
+    // MARK: – Segment palette (blue-first to match reference)
+
+    private let segmentPalette: [Color] = [
+        Color.bobHex(0x4F7FFF), // blue — dominant
+        Color.bobHex(0x8DB53E), // olive green
+        Color.bobHex(0xBA68C8), // purple
+        Color.bobHex(0xFF8A65), // orange
+        Color.bobHex(0xFFB74D), // amber
+        Color.bobHex(0x4DD0E1)  // teal
+    ]
+
+    private func segmentColor(_ idx: Int) -> Color { segmentPalette[idx % segmentPalette.count] }
+
+    private func segStart(idx: Int, total: Decimal) -> Double {
+        guard total > 0 else { return 0 }
+        let pre = categoryBreakdown.prefix(idx).reduce(Decimal(0)) { $0 + $1.amount }
+        return Double((pre / total) as NSDecimalNumber)
+    }
+    private func segEnd(idx: Int, total: Decimal) -> Double {
+        guard total > 0 else { return 0 }
+        let inc = categoryBreakdown.prefix(idx + 1).reduce(Decimal(0)) { $0 + $1.amount }
+        return Double((inc / total) as NSDecimalNumber)
+    }
+
+    // MARK: – Ring chart (multi-segment donut)
 
     private var ringChart: some View {
-        let periodLabel = currentSegment.map { seg in
+        let total = categoryBreakdown.reduce(Decimal(0)) { $0 + $1.amount }
+        let catCount = categoryBreakdown.count
+
+        let periodLabel: String = {
+            guard let seg = currentSegment else { return "" }
             switch selectedPeriod {
             case .week:
                 let f = DateFormatter(); f.dateFormat = "MMM d"
@@ -400,70 +440,105 @@ struct SpendingView: View {
             case .month:
                 let f = DateFormatter(); f.dateFormat = "MMMM"
                 return f.string(from: seg.start)
-            case .quarter:
-                return seg.label
-            case .year:
-                return seg.label
+            case .quarter, .year: return seg.label
             }
-        } ?? ""
+        }()
 
-        return ZStack {
-            // Background ring
-            Circle()
-                .stroke(Color.bobSurface2, lineWidth: 20)
+        return GeometryReader { geo in
+            let size = min(geo.size.width, geo.size.height)
+            let center = CGPoint(x: geo.size.width / 2, y: size / 2)
+            let strokeW: CGFloat = 26
+            let radius: CGFloat = (size - strokeW) / 2 - 4
 
-            // Progress ring — olive/green
-            Circle()
-                .trim(from: 0, to: ringProgress)
-                .stroke(
-                    Color.bobHex(0x8DB53E),
-                    style: StrokeStyle(lineWidth: 20, lineCap: .round)
-                )
-                .rotationEffect(.degrees(-90))
-                .animation(.spring(response: 0.6, dampingFraction: 0.8), value: ringProgress)
+            ZStack {
+                // Background track
+                Circle()
+                    .stroke(Color.bobSurface2, lineWidth: strokeW)
+                    .frame(width: size - 8, height: size - 8)
+                    .position(center)
 
-            // Center text
-            VStack(spacing: 6) {
-                Text("Total spend")
-                    .font(.system(size: 14)).foregroundStyle(Color.bobInk2)
-                if !periodLabel.isEmpty {
-                    Text(periodLabel)
-                        .font(.system(size: 13)).foregroundStyle(Color.bobInk2)
+                // Segments
+                ForEach(0..<catCount, id: \.self) { idx in
+                    let start = segStart(idx: idx, total: total)
+                    let end   = segEnd(idx: idx, total: total)
+                    Circle()
+                        .trim(from: start, to: max(start, end - 0.005))
+                        .stroke(segmentColor(idx),
+                                style: StrokeStyle(lineWidth: strokeW, lineCap: .round))
+                        .rotationEffect(.degrees(-90))
+                        .frame(width: size - 8, height: size - 8)
+                        .position(center)
+                        .animation(.spring(response: 0.5, dampingFraction: 0.8), value: catCount)
                 }
-                Text(CurrencyFormatter.string(currentExpenses, code: currencyCode))
-                    .font(.system(size: 32, weight: .bold)).foregroundStyle(Color.bobInk)
-                    .contentTransition(.numericText())
+
+                // Category icons on ring segments
+                ForEach(0..<catCount, id: \.self) { idx in
+                    let start = segStart(idx: idx, total: total)
+                    let end   = segEnd(idx: idx, total: total)
+                    let pct = end - start
+                    if pct >= 0.06 { // only show icon if segment is big enough
+                        let midAngle = ((start + end) / 2) * 2 * .pi - .pi / 2
+                        let x = center.x + cos(midAngle) * radius
+                        let y = center.y + sin(midAngle) * radius
+                        ZStack {
+                            Circle().fill(segmentColor(idx)).frame(width: 24, height: 24)
+                            Image(systemName: categoryBreakdown[idx].symbol)
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundStyle(.white)
+                        }
+                        .position(x: x, y: y)
+                    }
+                }
+
+                // Center text
+                VStack(spacing: 4) {
+                    Text("Total spend").font(.system(size: 14)).foregroundStyle(Color.bobInk2)
+                    if !periodLabel.isEmpty {
+                        Text(periodLabel).font(.system(size: 13)).foregroundStyle(Color.bobInk2)
+                    }
+                    Text(CurrencyFormatter.string(currentExpenses, code: currencyCode))
+                        .font(.system(size: 30, weight: .bold)).foregroundStyle(Color.bobInk)
+                        .contentTransition(.numericText())
+                }
+                .position(center)
+
+                // ⓘ button at bottom of ring
+                Button { } label: {
+                    ZStack {
+                        Circle().fill(Color.bobSurface2).frame(width: 28, height: 28)
+                        Circle().stroke(Color.bobInk2.opacity(0.5), lineWidth: 1).frame(width: 28, height: 28)
+                        Text("?").font(.system(size: 13, weight: .medium)).foregroundStyle(Color.bobInk2)
+                    }
+                }
+                .buttonStyle(.plain)
+                .position(x: center.x, y: center.y + radius + 18)
             }
         }
-        .frame(width: 240, height: 240)
+        .frame(height: 300)
         .frame(maxWidth: .infinity)
     }
 
     // MARK: – Category row
 
     private func categoryRow(cat: (name: String, symbol: String, amount: Decimal), idx: Int) -> some View {
-        let palette: [Color] = [
-            Color.bobHex(0x4ADE80), Color.bobHex(0x4F7FFF), Color.bobHex(0xFFB74D),
-            Color.bobHex(0xFF5252), Color.bobHex(0xBA68C8), Color.bobHex(0xFF8A65)
-        ]
-        let color = palette[idx % palette.count]
+        let color = segmentColor(idx)
         let total = categoryBreakdown.reduce(Decimal(0)) { $0 + $1.amount }
         let pct = total > 0 ? Int(Double((cat.amount / total * 100) as NSDecimalNumber)) : 0
 
         return HStack(spacing: 14) {
             ZStack {
-                Circle().fill(color.opacity(0.2)).frame(width: 36, height: 36)
-                Image(systemName: cat.symbol).font(.system(size: 14, weight: .medium)).foregroundStyle(color)
+                Circle().fill(color.opacity(0.18)).frame(width: 44, height: 44)
+                Image(systemName: cat.symbol).font(.system(size: 16, weight: .medium)).foregroundStyle(color)
             }
-            VStack(alignment: .leading, spacing: 2) {
-                Text(cat.name).font(.system(size: 15, weight: .medium)).foregroundStyle(Color.bobInk)
-                Text("\(pct)% of total").font(.system(size: 12)).foregroundStyle(Color.bobInk2)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(cat.name).font(.system(size: 16, weight: .semibold)).foregroundStyle(Color.bobInk)
+                Text("\(pct)% of spend").font(.system(size: 13)).foregroundStyle(Color.bobInk2)
             }
             Spacer()
             Text(CurrencyFormatter.string(cat.amount, code: currencyCode))
-                .font(.system(size: 15, weight: .semibold)).monospacedDigit().foregroundStyle(Color.bobInk)
+                .font(.system(size: 16, weight: .semibold)).monospacedDigit().foregroundStyle(Color.bobInk)
         }
-        .padding(.horizontal, Spacing.m).padding(.vertical, 13)
+        .padding(.horizontal, Spacing.m).padding(.vertical, 14)
     }
 }
 
