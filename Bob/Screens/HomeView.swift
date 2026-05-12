@@ -4,7 +4,7 @@ import UIKit
 
 struct HomeView: View {
     var onSwitchTab: ((BobTab) -> Void)? = nil
-    var onAddTransaction: (() -> Void)? = nil
+    var onAchievementsUnlocked: (([String]) -> Void)? = nil
 
     @Environment(\.modelContext) private var modelContext
 
@@ -14,10 +14,14 @@ struct HomeView: View {
     @Query(sort: \BudgetSettings.monthlyBudget) private var settingsList: [BudgetSettings]
     @Query(sort: \Goal.createdAt, order: .reverse) private var goals: [Goal]
     @Query(sort: \RecurringTransaction.nextDueDate) private var recurrings: [RecurringTransaction]
+    @Query private var statsList: [UserStats]
 
     @AppStorage("userName") private var userName: String = ""
     @State private var editingExpense: Expense?
     @State private var isAddingTransaction = false
+    @State private var showingAchievements = false
+
+    private var stats: UserStats? { statsList.first }
 
     // MARK: – Core data
 
@@ -112,7 +116,7 @@ struct HomeView: View {
         }
         .navigationBarHidden(true)
         .sheet(isPresented: $isAddingTransaction) {
-            AddTransactionSheet(currencyCode: currencyCode, expenseToEdit: nil)
+            AddTransactionSheet(currencyCode: currencyCode, expenseToEdit: nil, onAchievementsUnlocked: onAchievementsUnlocked)
         }
         .sheet(item: $editingExpense) { expense in
             AddTransactionSheet(currencyCode: currencyCode, expenseToEdit: expense)
@@ -122,7 +126,7 @@ struct HomeView: View {
     // MARK: – Top bar
 
     private var topBar: some View {
-        HStack {
+        HStack(spacing: 10) {
             Button { onSwitchTab?(.more) } label: {
                 Image(systemName: "gearshape")
                     .font(.system(size: 20, weight: .regular))
@@ -131,27 +135,48 @@ struct HomeView: View {
             }
             .buttonStyle(.plain)
 
+            // Streak chip — only shown at 2+ days
+            if let streak = stats?.currentStreak, streak >= 2 {
+                Button { showingAchievements = true } label: {
+                    HStack(spacing: 4) {
+                        Text("🔥")
+                            .font(.system(size: 13))
+                        Text("\(streak)")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(Color.bobAccent)
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(Color.bobSurface)
+                    .clipShape(Capsule())
+                    .overlay(Capsule().stroke(Color.bobHairline, lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+            }
+
             Spacer()
 
             Text(todayLabel)
-                .font(.system(size: 17, weight: .semibold))
+                .font(.system(size: 15, weight: .semibold))
                 .foregroundStyle(Color.bobInk)
 
             Spacer()
 
-            Button { } label: {
-                ZStack(alignment: .topTrailing) {
-                    Image(systemName: "bell")
-                        .font(.system(size: 20, weight: .regular))
-                        .foregroundStyle(Color.bobInk2)
-                        .frame(width: 36, height: 36)
+            // Add transaction button
+            Button { isAddingTransaction = true } label: {
+                ZStack {
                     Circle()
-                        .fill(Color.bobNotify)
-                        .frame(width: 8, height: 8)
-                        .offset(x: -2, y: 2)
+                        .fill(Color.bobAccent)
+                        .frame(width: 36, height: 36)
+                    Image(systemName: "plus")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(.white)
                 }
             }
             .buttonStyle(.plain)
+        }
+        .sheet(isPresented: $showingAchievements) {
+            AchievementsView()
         }
     }
 

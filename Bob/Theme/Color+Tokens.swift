@@ -1,44 +1,44 @@
 import SwiftUI
 
 extension Color {
-    // MARK: – Notion dark palette backgrounds
-    static let bobBackground   = Color.bobHex(0x191919)   // Notion page background
-    static let bobSurface      = Color.bobHex(0x2F2F2F)   // Notion card / block
-    static let bobSurface2     = Color.bobHex(0x373737)   // Notion elevated / hover
-    static let bobSurface3     = Color.bobHex(0x3F3F3F)   // Notion input / pressed
+    // MARK: – Page backgrounds
+    static let bobBackground   = Color.bobHex(0xF4F4F4)   // app page background (Revolut)
+    static let bobSurface      = Color.bobHex(0xFFFFFF)   // cards, sheets
+    static let bobSurface2     = Color.bobHex(0xF4F4F4)   // secondary surfaces, progress track
+    static let bobSurface3     = Color.bobHex(0xE8E8E8)   // inputs, pressed states
 
     // MARK: – Text
-    static let bobInk          = Color.bobHex(0xFFFFFF)   // primary text
-    static let bobInk2         = Color.bobHex(0x999999)   // secondary (Notion muted)
-    static let bobInk3         = Color.bobHex(0x555555)   // tertiary / placeholders
+    static let bobInk          = Color.bobHex(0x191C1F)   // primary text (Revolut)
+    static let bobInk2         = Color.bobHex(0x505A63)   // secondary / muted (Revolut)
+    static let bobInk3         = Color.bobHex(0x8E9AA6)   // tertiary / placeholders
 
-    // MARK: – Borders
-    static let bobHairline     = Color.bobHex(0x3F3F3F)   // Notion border
+    // MARK: – Borders (no shadows — elevation via surface contrast + hairline only)
+    static let bobHairline     = Color.black.opacity(0.06)
 
-    // MARK: – Accent — Apple blue
-    static let bobAccent       = Color.bobHex(0x007AFF)
-    static let bobAccentSoft   = Color.bobHex(0x007AFF).opacity(0.15)
+    // MARK: – Accent — dark navy (primary actions, buttons)
+    static let bobAccent       = Color.bobHex(0x0A0A0F)
+    static let bobAccentSoft   = Color.bobHex(0x0A0A0F).opacity(0.08)
 
-    // MARK: – Income green (separate from accent)
-    static let bobGreen        = Color.bobHex(0x30D158)
+    // MARK: – Income green (Revolut)
+    static let bobGreen        = Color.bobHex(0x00A87E)
 
-    // MARK: – Negative
-    static let bobOverBudget   = Color.bobHex(0xFF5252)
-    static let bobDebit        = Color.bobHex(0xFF5252)
+    // MARK: – Negative / expense (Revolut)
+    static let bobOverBudget   = Color.bobHex(0xE23B4A)
+    static let bobDebit        = Color.bobHex(0xE23B4A)
 
-    // MARK: – Chart blue
-    static let bobChartBlue    = Color.bobHex(0x4F7FFF)
+    // MARK: – Chart (Revolut cobalt violet)
+    static let bobChartBlue    = Color.bobHex(0x494FDF)
 
-    // MARK: – Tab bar / dark surfaces
-    static let bobDark         = Color.bobHex(0x111111)   // Notion sidebar tone
+    // MARK: – Dark surfaces (for pill buttons, dark cards)
+    static let bobDark         = Color.bobHex(0x0A0A0F)
     static let bobDarkInk      = Color.bobHex(0xFFFFFF)
-    static let bobDarkInk2     = Color.bobHex(0x888888)
+    static let bobDarkInk2     = Color.bobHex(0x8E9AA6)
 
-    // MARK: – Notification
-    static let bobNotify       = Color.bobHex(0xFF5252)
+    // MARK: – Notification badge
+    static let bobNotify       = Color.bobHex(0xE23B4A)
 
     // MARK: – Tab bar background
-    static let bobTabBar       = Color.bobHex(0x111111)
+    static let bobTabBar       = Color.bobHex(0xFFFFFF)
 }
 
 extension Color {

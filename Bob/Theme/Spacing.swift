@@ -14,9 +14,10 @@ enum Spacing {
 }
 
 enum Radius {
-    static let row: CGFloat = 0
-    static let button: CGFloat = 8
-    static let card: CGFloat = 10
+    static let row: CGFloat = 12
+    static let button: CGFloat = 999   // full pill (Revolut standard)
+    static let card: CGFloat = 20
+    static let input: CGFloat = 12
 }
 
 enum Hairline {

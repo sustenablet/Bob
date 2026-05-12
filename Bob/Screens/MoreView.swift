@@ -32,8 +32,14 @@ struct MoreView: View {
         .padding(.top, 8)
     }
 
+    @State private var showingAchievements = false
+
     private var moreLinks: some View {
         VStack(spacing: 0) {
+            moreRow(icon: "trophy.fill", iconColor: Color.bobAccent, label: "Achievements") {
+                showingAchievements = true
+            }
+            Divider().background(Color.bobHairline)
             moreRow(icon: "target", iconColor: Color.bobAccent, label: "Savings Goals") {
                 // Navigate to goals
             }
@@ -49,6 +55,9 @@ struct MoreView: View {
         .background(Color.bobSurface)
         .clipShape(RoundedRectangle(cornerRadius: 16))
         .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.bobHairline, lineWidth: 1))
+        .sheet(isPresented: $showingAchievements) {
+            AchievementsView()
+        }
     }
 
     private func moreRow(icon: String, iconColor: Color, label: String, action: @escaping () -> Void) -> some View {

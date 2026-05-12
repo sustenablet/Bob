@@ -2,23 +2,21 @@ import SwiftUI
 
 extension Font {
     // Big hero numerals — bold sans-serif (dashboard balance)
-    static func bobHero(_ size: CGFloat = 38, weight: Font.Weight = .bold) -> Font {
+    static func bobHero(_ size: CGFloat = 44, weight: Font.Weight = .bold) -> Font {
         .system(size: size, weight: weight)
     }
 
-    // Optional serif (for any editorial headings)
-    static func bobSerif(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
-        .system(size: size, weight: weight, design: .serif)
-    }
+    // Screen / section titles
+    static let bobTitle        = Font.system(size: 22, weight: .bold)
 
     // Body
-    static let bobBody       = Font.system(size: 16, weight: .regular)
-    static let bobBodyMed    = Font.system(size: 16, weight: .medium)
-    static let bobCallout    = Font.system(size: 15, weight: .regular)
-    static let bobCaption    = Font.system(size: 13, weight: .regular)
+    static let bobBody         = Font.system(size: 16, weight: .regular)
+    static let bobBodyMed      = Font.system(size: 16, weight: .medium)
+    static let bobCallout      = Font.system(size: 15, weight: .regular)
+    static let bobCaption      = Font.system(size: 13, weight: .regular)
 
     // Section eyebrows
-    static let bobLabel      = Font.system(size: 11, weight: .semibold)
+    static let bobLabel        = Font.system(size: 11, weight: .semibold)
 
     // Mono for amounts
     static func bobMono(_ size: CGFloat = 15, weight: Font.Weight = .regular) -> Font {
@@ -30,7 +28,7 @@ struct EyebrowStyle: ViewModifier {
     func body(content: Content) -> some View {
         content
             .font(.bobLabel)
-            .tracking(1.5)
+            .tracking(0.5)
             .textCase(.uppercase)
             .foregroundStyle(Color.bobInk2)
     }

@@ -8,9 +8,14 @@ struct AddTransactionSheet: View {
 
     @Query(sort: \ExpenseCategory.sortOrder) private var allCategories: [ExpenseCategory]
     @Query(sort: \QuickAddTemplate.sortOrder) private var quickTemplates: [QuickAddTemplate]
+    @Query private var statsList: [UserStats]
+    @Query(sort: [SortDescriptor(\Expense.date, order: .reverse)]) private var allExpenses: [Expense]
+    @Query private var goals: [Goal]
+    @Query(sort: \BudgetSettings.monthlyBudget) private var settingsList: [BudgetSettings]
 
     let currencyCode: String
     let expenseToEdit: Expense?
+    var onAchievementsUnlocked: (([String]) -> Void)? = nil
 
     @State private var kind: TransactionKind = .expense
     @State private var amount: Decimal = .zero
@@ -276,6 +281,7 @@ struct AddTransactionSheet: View {
         UINotificationFeedbackGenerator().notificationOccurred(.success)
         let trimNote     = note.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimMerchant = merchant.trimmingCharacters(in: .whitespacesAndNewlines)
+        let isNewTransaction = expenseToEdit == nil
 
         if let expense = expenseToEdit {
             expense.amount = amount; expense.date = date
@@ -291,6 +297,20 @@ struct AddTransactionSheet: View {
             ))
         }
         try? modelContext.save()
+
+        if isNewTransaction, let stats = statsList.first {
+            let svc = GamificationService.shared
+            svc.updateStreak(stats: stats)
+            let unlocked = svc.checkAchievements(
+                stats: stats,
+                allExpenses: allExpenses,
+                goals: goals,
+                budget: settingsList.first
+            )
+            try? modelContext.save()
+            if !unlocked.isEmpty { onAchievementsUnlocked?(unlocked) }
+        }
+
         dismiss()
     }
 }
