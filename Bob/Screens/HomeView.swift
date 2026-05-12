@@ -17,9 +17,12 @@ struct HomeView: View {
     @Query private var statsList: [UserStats]
 
     @AppStorage("userName") private var userName: String = ""
+    @AppStorage("petName") private var petName: String = "Buddy"
     @State private var editingExpense: Expense?
     @State private var isAddingTransaction = false
     @State private var showingAchievements = false
+    @State private var showingPetDetail = false
+    @State private var celebratingPet = false
 
     private var stats: UserStats? { statsList.first }
 
@@ -99,8 +102,12 @@ struct HomeView: View {
                         .padding(.horizontal, Spacing.pageMargin)
                         .padding(.top, 12)
 
-                    heroCarousel
+                    petCardSection
+                        .padding(.horizontal, Spacing.pageMargin)
                         .padding(.top, Spacing.m)
+
+                    heroCarousel
+                        .padding(.top, Spacing.s)
 
                     if !upcomingItems.isEmpty {
                         upcomingSection
@@ -116,11 +123,68 @@ struct HomeView: View {
         }
         .navigationBarHidden(true)
         .sheet(isPresented: $isAddingTransaction) {
-            AddTransactionSheet(currencyCode: currencyCode, expenseToEdit: nil, onAchievementsUnlocked: onAchievementsUnlocked)
+            AddTransactionSheet(currencyCode: currencyCode, expenseToEdit: nil, onAchievementsUnlocked: { ids in
+                onAchievementsUnlocked?(ids)
+                if !ids.isEmpty {
+                    celebratingPet = true
+                    Task {
+                        try? await Task.sleep(for: .seconds(4))
+                        await MainActor.run { celebratingPet = false }
+                    }
+                }
+            })
         }
         .sheet(item: $editingExpense) { expense in
             AddTransactionSheet(currencyCode: currencyCode, expenseToEdit: expense)
         }
+        .sheet(isPresented: $showingPetDetail) {
+            PetDetailView(
+                score: petScore,
+                petName: petName,
+                unlockedAchievements: stats?.earnedAchievementIDs ?? [],
+                streakDays: stats?.currentStreak ?? 0
+            )
+        }
+    }
+
+    // MARK: – Pet card
+
+    private var petScore: PetHealthScore {
+        let budgetUsage: Double
+        let hasBudget = monthlyBudget > 0
+        if hasBudget {
+            budgetUsage = Double((monthExpensesTotal / monthlyBudget) as NSDecimalNumber)
+        } else {
+            budgetUsage = 0
+        }
+
+        let activeGoals = goals.filter { $0.isActive && !$0.isCompleted }
+        let hasGoals = !activeGoals.isEmpty
+        let totalTarget = activeGoals.reduce(Decimal(0)) { $0 + $1.targetAmount }
+        let totalSaved  = activeGoals.reduce(Decimal(0)) { $0 + $1.totalSaved }
+        let savingsProgress: Double = totalTarget > 0
+            ? Double((totalSaved / totalTarget) as NSDecimalNumber)
+            : 0
+
+        return PetHealthScore.compute(
+            budgetUsage: budgetUsage,
+            hasBudget: hasBudget,
+            savingsProgress: savingsProgress,
+            hasGoals: hasGoals,
+            streakDays: stats?.currentStreak ?? 0,
+            achievementsEarned: stats?.earnedAchievementIDs.count ?? 0,
+            totalAchievements: AchievementDefinition.all.count
+        )
+    }
+
+    private var petCardSection: some View {
+        PetCard(
+            score: petScore,
+            petName: petName,
+            unlockedAchievements: stats?.earnedAchievementIDs ?? [],
+            stateOverride: celebratingPet ? .celebrating : nil,
+            onTap: { showingPetDetail = true }
+        )
     }
 
     // MARK: – Top bar
