@@ -139,38 +139,17 @@ struct HomeView: View {
 
     var body: some View {
         ZStack {
-            Color.bobBackground.ignoresSafeArea()
+            dashboardBackground.ignoresSafeArea()
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 0) {
-                    topBar
-                        .padding(.horizontal, Spacing.pageMargin)
-                        .padding(.top, 12)
-
-                    petCardSection
-                        .padding(.horizontal, Spacing.pageMargin)
-                        .padding(.top, Spacing.m)
-
-                    quickStatsStrip
-                        .padding(.top, Spacing.l)
-
-                    heroCarousel
-                        .padding(.top, Spacing.s)
-
-                    if !upcomingItems.isEmpty {
-                        upcomingSection
-                            .padding(.top, Spacing.xl)
-                    }
-
-                    topCategoriesSection
-                        .padding(.top, Spacing.xl)
-
-                    cashFlowSection
-                        .padding(.top, Spacing.xl)
-
+                    dashboardHero
+                    dashboardPromoCard
+                        .padding(.top, 22)
                     recentTransactionsSection
-                        .padding(.top, Spacing.xl)
-
-                    Spacer().frame(height: 100)
+                        .padding(.top, 20)
+                    dashboardInsightsStrip
+                        .padding(.top, 20)
+                    Spacer().frame(height: 120)
                 }
             }
         }
@@ -202,6 +181,413 @@ struct HomeView: View {
                 try? await Task.sleep(for: .seconds(4))
                 await MainActor.run { celebratingPet = false }
             }
+        }
+    }
+
+    // MARK: – Dashboard layout
+
+    private var dashboardBackground: some View {
+        ZStack {
+            Color.bobDark
+            LinearGradient(
+                colors: [
+                    Color.bobAccent.opacity(0.92),
+                    Color.bobAccent.opacity(0.58),
+                    Color.bobDark
+                ],
+                startPoint: .top,
+                endPoint: UnitPoint(x: 0.5, y: 0.58)
+            )
+            .blur(radius: 8)
+
+            RadialGradient(
+                colors: [
+                    Color.white.opacity(0.12),
+                    Color.clear
+                ],
+                center: UnitPoint(x: 0.15, y: 0.16),
+                startRadius: 20,
+                endRadius: 420
+            )
+        }
+    }
+
+    private var dashboardHero: some View {
+        VStack(spacing: 0) {
+            topControlRow
+                .padding(.horizontal, Spacing.pageMargin)
+                .padding(.top, 12)
+
+            VStack(spacing: 10) {
+                Text(heroTitle)
+                    .font(.system(size: 19, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.82))
+                    .padding(.top, 28)
+
+                HStack(alignment: .lastTextBaseline, spacing: 0) {
+                    Text(CurrencyFormatter.string(heroAmount, code: currencyCode))
+                        .font(.system(size: 58, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
+                        .minimumScaleFactor(0.72)
+                        .lineLimit(1)
+                    if heroSecondaryText != nil {
+                        Text(heroSecondaryText ?? "")
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundStyle(.white.opacity(0.78))
+                            .padding(.leading, 8)
+                    }
+                }
+                .contentTransition(.numericText())
+
+                Button {
+                    showAllTransactions = true
+                } label: {
+                    Text(heroButtonTitle)
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 32)
+                        .padding(.vertical, 14)
+                        .background(
+                            Capsule()
+                                .fill(Color.white.opacity(0.24))
+                                .overlay(
+                                    Capsule()
+                                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                                )
+                        )
+                }
+                .buttonStyle(.plain)
+                .padding(.top, 10)
+
+                HStack(spacing: 10) {
+                    pageDot(active: true)
+                    pageDot(active: heroCardContext == .budget)
+                    pageDot(active: heroCardContext == .goals)
+                }
+                .padding(.top, 34)
+            }
+
+            shortcutRow
+                .padding(.horizontal, Spacing.pageMargin)
+                .padding(.top, 28)
+        }
+    }
+
+    private var topControlRow: some View {
+        HStack(spacing: 12) {
+            Button { showingPetDetail = true } label: {
+                ZStack(alignment: .topTrailing) {
+                    Circle()
+                        .fill(Color.white.opacity(0.2))
+                        .frame(width: 58, height: 58)
+                        .overlay(
+                            Circle()
+                                .stroke(Color.white.opacity(0.15), lineWidth: 1)
+                        )
+
+                    MascotCharacterView(
+                        state: celebratingPet ? .celebrating : petScore.state,
+                        size: 34,
+                        unlockedAchievements: stats?.earnedAchievementIDs ?? []
+                    )
+                    .frame(width: 58, height: 58)
+
+                    if celebratingPet || hasNotificationDot {
+                        Circle()
+                            .fill(Color.bobNotify)
+                            .frame(width: 10, height: 10)
+                            .offset(x: 2, y: -2)
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+
+            Button { showAllTransactions = true } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 22, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.92))
+                    Text("Search")
+                        .font(.system(size: 20, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.88))
+                    Spacer()
+                }
+                .padding(.horizontal, 18)
+                .frame(height: 58)
+                .background(
+                    Capsule()
+                        .fill(Color.white.opacity(0.08))
+                        .overlay(
+                            Capsule()
+                                .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                        )
+                )
+            }
+            .buttonStyle(.plain)
+
+            compactHeroIcon(systemName: "chart.bar.fill", action: { onSwitchTab?(.spending) })
+            compactHeroIcon(systemName: "list.bullet.rectangle.fill", action: { showAllTransactions = true })
+        }
+    }
+
+    private func compactHeroIcon(systemName: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            ZStack {
+                Circle()
+                    .fill(Color.white.opacity(0.08))
+                    .overlay(
+                        Circle()
+                            .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                    )
+                    .frame(width: 58, height: 58)
+                Image(systemName: systemName)
+                    .font(.system(size: 21, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.9))
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func pageDot(active: Bool) -> some View {
+        Circle()
+            .fill(active ? Color.white.opacity(0.95) : Color.white.opacity(0.36))
+            .frame(width: 10, height: 10)
+    }
+
+    private var shortcutRow: some View {
+        HStack(alignment: .top, spacing: 12) {
+            dashboardShortcut(
+                icon: "plus",
+                label: "Add transaction",
+                action: { isAddingTransaction = true }
+            )
+            dashboardShortcut(
+                icon: "dollarsign.circle",
+                label: "Transactions",
+                action: { showAllTransactions = true }
+            )
+            dashboardShortcut(
+                icon: "sparkles",
+                label: "Companion",
+                action: { showingPetDetail = true }
+            )
+            dashboardShortcut(
+                icon: "target",
+                label: "Goals",
+                action: { onSwitchTab?(.more) }
+            )
+        }
+    }
+
+    private func dashboardShortcut(icon: String, label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(spacing: 10) {
+                ZStack {
+                    Circle()
+                        .fill(Color.white.opacity(0.18))
+                        .frame(width: 68, height: 68)
+                    Image(systemName: icon)
+                        .font(.system(size: 24, weight: .medium))
+                        .foregroundStyle(.white)
+                }
+                Text(label)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
+                    .lineLimit(2)
+            }
+        }
+        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity)
+    }
+
+    private var dashboardPromoCard: some View {
+        Button { showingAchievements = true } label: {
+            HStack(spacing: 18) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(promoTitle)
+                        .font(.system(size: 20, weight: .bold))
+                        .foregroundStyle(.white)
+                        .multilineTextAlignment(.leading)
+                    Text(companionStatusLine)
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundStyle(Color.white.opacity(0.75))
+                        .multilineTextAlignment(.leading)
+                        .lineLimit(3)
+                }
+
+                Spacer(minLength: 8)
+
+                ZStack(alignment: .topTrailing) {
+                    RoundedRectangle(cornerRadius: 26, style: .continuous)
+                        .fill(Color.white.opacity(0.03))
+                        .frame(width: 126, height: 126)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 26, style: .continuous)
+                                .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                        )
+                    MascotCharacterView(
+                        state: celebratingPet ? .celebrating : petScore.state,
+                        size: 84,
+                        unlockedAchievements: stats?.earnedAchievementIDs ?? []
+                    )
+                    .frame(width: 126, height: 126)
+
+                    Image(systemName: "xmark")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(Color.white.opacity(0.34))
+                        .padding(.top, 10)
+                        .padding(.trailing, 10)
+                }
+            }
+            .padding(20)
+            .background(
+                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    .fill(Color.white.opacity(0.09))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 28, style: .continuous)
+                            .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, Spacing.pageMargin)
+        .sheet(isPresented: $showingAchievements) {
+            AchievementsView()
+        }
+    }
+
+    private var dashboardInsightsStrip: some View {
+        HStack(spacing: 12) {
+            revolutStatTile(
+                title: "Spent this month",
+                value: CurrencyFormatter.compact(monthExpensesTotal, code: currencyCode),
+                accent: Color.bobDebit
+            )
+            revolutStatTile(
+                title: "Budget left",
+                value: budgetLeftText,
+                accent: Color.bobGreen
+            )
+            revolutStatTile(
+                title: "Savings rate",
+                value: monthIncome > 0 ? String(format: "%.0f%%", savingsRate) : "—",
+                accent: Color.bobAccent
+            )
+        }
+        .padding(.horizontal, Spacing.pageMargin)
+    }
+
+    private func revolutStatTile(title: String, value: String, accent: Color) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(Color.white.opacity(0.55))
+            Text(value)
+                .font(.system(size: 17, weight: .bold))
+                .foregroundStyle(.white)
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+            Capsule()
+                .fill(accent)
+                .frame(width: 34, height: 4)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 16)
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(Color.white.opacity(0.06))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .stroke(Color.white.opacity(0.05), lineWidth: 1)
+                )
+        )
+    }
+
+    private var budgetLeftText: String {
+        guard monthlyBudget > 0 else { return "—" }
+        return CurrencyFormatter.compact(monthlyBudget - monthExpensesTotal, code: currencyCode)
+    }
+
+    private var promoTitle: String {
+        switch petScore.state {
+        case .thriving, .celebrating:
+            return "Everything is in rhythm"
+        case .content:
+            return "You’re tracking well"
+        case .neutral:
+            return "Keep the pace steady"
+        case .worried:
+            return "A few things need attention"
+        case .struggling:
+            return "Reset the month with one move"
+        case .sleeping:
+            return "Your companion is waiting"
+        }
+    }
+
+    private var hasNotificationDot: Bool {
+        (stats?.currentStreak ?? 0) >= 2 || celebratingPet
+    }
+
+    private enum DashboardHeroContext {
+        case cashflow
+        case budget
+        case goals
+    }
+
+    private var heroCardContext: DashboardHeroContext {
+        let activeGoals = goals.filter { $0.isActive && !$0.isCompleted }
+        if !activeGoals.isEmpty { return .goals }
+        if monthlyBudget > 0 { return .budget }
+        return .cashflow
+    }
+
+    private var heroAmount: Decimal {
+        switch heroCardContext {
+        case .cashflow:
+            return monthIncome > 0 ? (monthIncome - monthExpensesTotal) : monthExpensesTotal
+        case .budget:
+            return monthlyBudget - monthExpensesTotal
+        case .goals:
+            return goals.filter { $0.isActive && !$0.isCompleted }.reduce(.zero) { $0 + $1.totalSaved }
+        }
+    }
+
+    private var heroTitle: String {
+        switch heroCardContext {
+        case .cashflow:
+            return monthIncome > 0 ? "Available this month" : "Spent this month"
+        case .budget:
+            return "Budget remaining"
+        case .goals:
+            return "Saved toward goals"
+        }
+    }
+
+    private var heroSecondaryText: String? {
+        switch heroCardContext {
+        case .cashflow:
+            if monthIncome > 0, lastMonthExpensesTotal > 0 {
+                return momIsPositive ? "ahead" : "tight"
+            }
+            return nil
+        case .budget:
+            return monthlyBudget > 0 ? "left" : nil
+        case .goals:
+            let count = goals.filter { $0.isActive && !$0.isCompleted }.count
+            return count > 0 ? "\(count)" : nil
+        }
+    }
+
+    private var heroButtonTitle: String {
+        switch heroCardContext {
+        case .cashflow: return "Transactions"
+        case .budget: return "Budget"
+        case .goals: return "Goals"
         }
     }
 
@@ -277,7 +663,7 @@ struct HomeView: View {
         return "Keep logging to grow your companion."
     }
 
-    // MARK: – Quick stats strip (3 tiles)
+    // MARK: – Legacy sections
     private var quickStatsStrip: some View {
         HStack(spacing: 10) {
             statTile(
@@ -903,40 +1289,11 @@ struct HomeView: View {
                 Button { showAllTransactions = true } label: {
                     Text("See All")
                         .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(Color.bobAccent)
+                        .foregroundStyle(.white.opacity(0.78))
                 }
                 .buttonStyle(.plain)
                 .padding(.trailing, Spacing.pageMargin)
             }
-
-            // Add transaction CTA card
-            Button { isAddingTransaction = true } label: {
-                HStack(spacing: 14) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 10).fill(Color.bobAccent.opacity(0.15)).frame(width: 42, height: 42)
-                        Image(systemName: "plus.circle.fill")
-                            .font(.system(size: 20)).foregroundStyle(Color.bobAccent)
-                    }
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Log a transaction")
-                            .font(.system(size: 15, weight: .semibold)).foregroundStyle(Color.bobInk)
-                        Text("Tap to add income or expense")
-                            .font(.system(size: 12)).foregroundStyle(Color.bobInk2)
-                    }
-                    Spacer()
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 13, weight: .semibold)).foregroundStyle(Color.bobInk2)
-                }
-                .padding(Spacing.m)
-                .background(Color.bobSurface)
-                .clipShape(RoundedRectangle(cornerRadius: 14))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14)
-                        .stroke(Color.bobAccent.opacity(0.4), lineWidth: 1)
-                )
-            }
-            .buttonStyle(.plain)
-            .padding(.horizontal, Spacing.pageMargin)
 
             // Recent transaction rows
             if !recentExpenses.isEmpty {
@@ -953,9 +1310,43 @@ struct HomeView: View {
                         }
                     }
                 }
-                .background(Color.bobSurface)
-                .clipShape(RoundedRectangle(cornerRadius: 16))
-                .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.bobHairline, lineWidth: 0.5))
+                .background(
+                    RoundedRectangle(cornerRadius: 28, style: .continuous)
+                        .fill(Color.white.opacity(0.09))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                                .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                        )
+                )
+                .padding(.horizontal, Spacing.pageMargin)
+            } else {
+                Button { isAddingTransaction = true } label: {
+                    HStack(spacing: 14) {
+                        ZStack {
+                            Circle()
+                                .fill(Color.white.opacity(0.12))
+                                .frame(width: 50, height: 50)
+                            Image(systemName: "plus")
+                                .font(.system(size: 20, weight: .semibold))
+                                .foregroundStyle(.white)
+                        }
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Log your first transaction")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundStyle(.white)
+                            Text("Start building your dashboard history.")
+                                .font(.system(size: 13))
+                                .foregroundStyle(Color.white.opacity(0.7))
+                        }
+                        Spacer()
+                    }
+                    .padding(18)
+                    .background(
+                        RoundedRectangle(cornerRadius: 24, style: .continuous)
+                            .fill(Color.white.opacity(0.08))
+                    )
+                }
+                .buttonStyle(.plain)
                 .padding(.horizontal, Spacing.pageMargin)
             }
         }
@@ -969,27 +1360,27 @@ struct HomeView: View {
         let isIncome = tx.kind == .income
         let amount = CurrencyFormatter.string(tx.amount, code: currencyCode)
         let display = isIncome ? "+\(amount)" : amount
-        let amountColor: Color = isIncome ? .bobAccent : .bobInk
+        let amountColor: Color = isIncome ? .white : .white
 
         return HStack(spacing: 14) {
             // Icon
             ZStack {
                 Circle()
-                    .fill(Color.bobSurface2)
+                    .fill(Color.white.opacity(0.1))
                     .frame(width: 42, height: 42)
                 Image(systemName: tx.category?.sfSymbol ?? "circle.dashed")
                     .font(.system(size: 16, weight: .medium))
-                    .foregroundStyle(Color.bobInk2)
+                    .foregroundStyle(.white.opacity(0.86))
             }
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(displayTitle(for: tx))
                     .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(Color.bobInk)
+                    .foregroundStyle(.white)
                     .lineLimit(1)
                 Text(relativeDate(tx.date))
                     .font(.system(size: 12))
-                    .foregroundStyle(Color.bobInk2)
+                    .foregroundStyle(Color.white.opacity(0.6))
             }
 
             Spacer()
@@ -1009,7 +1400,7 @@ struct HomeView: View {
     private func sectionHeader(_ title: String) -> some View {
         Text(title)
             .font(.system(size: 12, weight: .semibold))
-            .foregroundStyle(Color.bobInk2)
+            .foregroundStyle(Color.white.opacity(0.58))
             .tracking(0.8)
             .padding(.horizontal, Spacing.pageMargin)
     }

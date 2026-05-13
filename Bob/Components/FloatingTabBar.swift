@@ -18,15 +18,15 @@ struct FloatingTabBar: View {
             tabButton(.spending,  icon: "chart.bar.fill",  label: "Spending")
             tabButton(.more,      icon: "ellipsis",        label: "More")
         }
-        .padding(.horizontal, 8)
+        .padding(.horizontal, 10)
         .padding(.vertical, 10)
         .background(
-            Capsule()
-                .fill(Color.bobSurface)
-                .shadow(color: .black.opacity(0.10), radius: 24, x: 0, y: 8)
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                .fill(Color.white.opacity(0.07))
+                .shadow(color: .black.opacity(0.28), radius: 28, x: 0, y: 10)
                 .overlay(
-                    Capsule()
-                        .stroke(Color.bobHairline, lineWidth: 1)
+                    RoundedRectangle(cornerRadius: 30, style: .continuous)
+                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
                 )
         )
     }
@@ -39,13 +39,17 @@ struct FloatingTabBar: View {
             VStack(spacing: 4) {
                 Image(systemName: icon)
                     .font(.system(size: 18, weight: selected == tab ? .semibold : .regular))
-                    .foregroundStyle(selected == tab ? Color.bobAccent : Color.bobInk3)
+                    .foregroundStyle(selected == tab ? .white : Color.white.opacity(0.7))
                 Text(label)
                     .font(.system(size: 10, weight: selected == tab ? .semibold : .regular))
-                    .foregroundStyle(selected == tab ? Color.bobAccent : Color.bobInk3)
+                    .foregroundStyle(selected == tab ? .white : Color.white.opacity(0.66))
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 4)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .fill(selected == tab ? Color.white.opacity(0.15) : Color.clear)
+            )
             .contentShape(Rectangle())
             .accessibilityLabel(label)
             .accessibilityAddTraits(selected == tab ? .isSelected : [])
