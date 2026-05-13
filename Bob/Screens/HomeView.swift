@@ -23,6 +23,7 @@ struct HomeView: View {
     @State private var showingAchievements = false
     @State private var showingPetDetail = false
     @State private var celebratingPet = false
+    @State private var showAllTransactions = false
 
     private var stats: UserStats? { statsList.first }
 
@@ -91,6 +92,50 @@ struct HomeView: View {
             .prefix(6).map { $0 }
     }
 
+    private var todaySpend: Decimal {
+        allExpenses.filter { $0.kind == .expense && Calendar.current.isDateInToday($0.date) }.reduce(0) { $0 + $1.amount }
+    }
+
+    private var weekSpend: Decimal {
+        let cal = Calendar.current
+        let wday = cal.component(.weekday, from: Date())
+        let startOfWeek = cal.date(byAdding: .day, value: -(wday - 1), to: cal.startOfDay(for: Date())) ?? Date()
+        return allExpenses.filter { $0.kind == .expense && $0.date >= startOfWeek }.reduce(0) { $0 + $1.amount }
+    }
+
+    private var savingsRate: Double {
+        let inc = (monthIncome as NSDecimalNumber).doubleValue
+        guard inc > 0 else { return 0 }
+        let exp = (monthExpensesTotal as NSDecimalNumber).doubleValue
+        return max(((inc - exp) / inc) * 100, 0)
+    }
+
+    private var topMonthCategories: [(name: String, symbol: String, amount: Decimal)] {
+        var dict: [String: (symbol: String, amount: Decimal)] = [:]
+        for tx in monthTransactions where tx.kind == .expense {
+            let cat = tx.category?.name ?? "Other"
+            let sym = tx.category?.sfSymbol ?? "circle.dashed"
+            let ex = dict[cat]
+            dict[cat] = (ex?.symbol ?? sym, (ex?.amount ?? 0) + tx.amount)
+        }
+        return dict.map { (name: $0.key, symbol: $0.value.symbol, amount: $0.value.amount) }
+            .sorted { $0.amount > $1.amount }.prefix(5).map { $0 }
+    }
+
+    private var last6MonthsData: [(label: String, income: Decimal, expenses: Decimal)] {
+        let cal = Calendar.current
+        let df = DateFormatter(); df.dateFormat = "MMM"
+        return (0..<6).reversed().map { offset -> (String, Decimal, Decimal) in
+            guard let date = cal.date(byAdding: .month, value: -offset, to: Date()),
+                  let start = cal.date(from: cal.dateComponents([.year, .month], from: date)),
+                  let end   = cal.date(byAdding: .month, value: 1, to: start) else { return ("", 0, 0) }
+            let txns = allExpenses.filter { $0.date >= start && $0.date < end }
+            let inc  = txns.filter { $0.kind == .income }.reduce(Decimal(0)) { $0 + $1.amount }
+            let exp  = txns.filter { $0.kind == .expense }.reduce(Decimal(0)) { $0 + $1.amount }
+            return (df.string(from: date), inc, exp)
+        }
+    }
+
     // MARK: – Body
 
     var body: some View {
@@ -106,6 +151,9 @@ struct HomeView: View {
                         .padding(.horizontal, Spacing.pageMargin)
                         .padding(.top, Spacing.m)
 
+                    quickStatsStrip
+                        .padding(.top, Spacing.l)
+
                     heroCarousel
                         .padding(.top, Spacing.s)
 
@@ -113,6 +161,12 @@ struct HomeView: View {
                         upcomingSection
                             .padding(.top, Spacing.xl)
                     }
+
+                    topCategoriesSection
+                        .padding(.top, Spacing.xl)
+
+                    cashFlowSection
+                        .padding(.top, Spacing.xl)
 
                     recentTransactionsSection
                         .padding(.top, Spacing.xl)
@@ -144,6 +198,11 @@ struct HomeView: View {
                 unlockedAchievements: stats?.earnedAchievementIDs ?? [],
                 streakDays: stats?.currentStreak ?? 0
             )
+        }
+        .sheet(isPresented: $showAllTransactions) {
+            NavigationStack {
+                TransactionsListView()
+            }
         }
     }
 
@@ -187,6 +246,202 @@ struct HomeView: View {
         )
     }
 
+    // MARK: – Quick stats strip (3 tiles)
+    private var quickStatsStrip: some View {
+        HStack(spacing: 10) {
+            statTile(
+                label: "Today",
+                value: todaySpend > 0 ? CurrencyFormatter.string(todaySpend, code: currencyCode) : "—",
+                icon: "sun.max.fill",
+                iconColor: .bobHex(0xFFB74D)
+            )
+            statTile(
+                label: "This Week",
+                value: weekSpend > 0 ? CurrencyFormatter.compact(weekSpend, code: currencyCode) : "—",
+                icon: "calendar.badge.clock",
+                iconColor: Color.bobChartBlue
+            )
+            statTile(
+                label: "Savings Rate",
+                value: monthIncome > 0 ? String(format: "%.0f%%", savingsRate) : "—",
+                icon: savingsRate >= 20 ? "chart.line.uptrend.xyaxis" : "chart.line.downtrend.xyaxis",
+                iconColor: savingsRate >= 20 ? Color.bobGreen : Color.bobDebit
+            )
+        }
+        .padding(.horizontal, Spacing.pageMargin)
+    }
+
+    private func statTile(label: String, value: String, icon: String, iconColor: Color) -> some View {
+        VStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.system(size: 18, weight: .medium))
+                .foregroundStyle(iconColor)
+            Text(value)
+                .font(.system(size: 15, weight: .bold))
+                .foregroundStyle(Color.bobInk)
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.65)
+            Text(label)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(Color.bobInk2)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 16)
+        .background {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color.bobSurface.opacity(0.8))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(Color.white.opacity(0.07), lineWidth: 1)
+                }
+        }
+    }
+
+    // MARK: – Top categories section
+    private var topCategoriesSection: some View {
+        VStack(alignment: .leading, spacing: Spacing.m) {
+            sectionHeader("TOP CATEGORIES")
+
+            if topMonthCategories.isEmpty {
+                Text("No expenses this month yet")
+                    .font(.system(size: 14))
+                    .foregroundStyle(Color.bobInk2)
+                    .padding(.horizontal, Spacing.pageMargin)
+            } else {
+                let catTotal = topMonthCategories.reduce(Decimal(0)) { $0 + $1.amount }
+                VStack(spacing: 0) {
+                    ForEach(Array(topMonthCategories.enumerated()), id: \.element.name) { idx, cat in
+                        categorySnapshotRow(cat: cat, idx: idx, total: catTotal)
+                        if idx < topMonthCategories.count - 1 {
+                            Rectangle()
+                                .fill(Color.white.opacity(0.05))
+                                .frame(height: 1)
+                                .padding(.leading, 58)
+                        }
+                    }
+                }
+                .background {
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .fill(Color.bobSurface.opacity(0.8))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                .stroke(Color.white.opacity(0.07), lineWidth: 1)
+                        }
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .padding(.horizontal, Spacing.pageMargin)
+            }
+        }
+    }
+
+    private let homePalette: [Color] = [
+        Color.bobHex(0xE0413B), Color.bobHex(0x4FC3F7), Color.bobHex(0xFFB74D),
+        Color.bobHex(0x81C784), Color.bobHex(0xBA68C8)
+    ]
+
+    private func categorySnapshotRow(cat: (name: String, symbol: String, amount: Decimal), idx: Int, total: Decimal) -> some View {
+        let color = homePalette[idx % homePalette.count]
+        let pct = total > 0 ? Double((cat.amount / total) as NSDecimalNumber) : 0
+
+        return HStack(spacing: 14) {
+            ZStack {
+                Circle()
+                    .fill(color.opacity(0.2))
+                    .frame(width: 40, height: 40)
+                Image(systemName: cat.symbol)
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(color)
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text(cat.name)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(Color.bobInk)
+                    Spacer()
+                    Text(CurrencyFormatter.string(cat.amount, code: currencyCode))
+                        .font(.system(size: 14, weight: .semibold))
+                        .monospacedDigit()
+                        .foregroundStyle(Color.bobInk)
+                }
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(Color.bobSurface2)
+                            .frame(height: 4)
+                        RoundedRectangle(cornerRadius: 2)
+                            .fill(color)
+                            .frame(width: geo.size.width * pct, height: 4)
+                            .animation(.spring(response: 0.5, dampingFraction: 0.8), value: pct)
+                    }
+                }
+                .frame(height: 4)
+            }
+        }
+        .padding(.horizontal, Spacing.m)
+        .padding(.vertical, 13)
+    }
+
+    // MARK: – Cash flow snapshot (6-month mini bars)
+    private var cashFlowSection: some View {
+        VStack(alignment: .leading, spacing: Spacing.m) {
+            sectionHeader("6-MONTH CASH FLOW")
+
+            VStack(alignment: .leading, spacing: Spacing.m) {
+                let maxVal = max(
+                    last6MonthsData.map { ($0.income as NSDecimalNumber).doubleValue }.max() ?? 1,
+                    last6MonthsData.map { ($0.expenses as NSDecimalNumber).doubleValue }.max() ?? 1,
+                    1
+                )
+
+                HStack(alignment: .bottom, spacing: 6) {
+                    ForEach(Array(last6MonthsData.enumerated()), id: \.offset) { _, item in
+                        VStack(spacing: 4) {
+                            HStack(alignment: .bottom, spacing: 2) {
+                                let incH = max(CGFloat((item.income as NSDecimalNumber).doubleValue / maxVal) * 72, 4)
+                                let expH = max(CGFloat((item.expenses as NSDecimalNumber).doubleValue / maxVal) * 72, 4)
+                                RoundedRectangle(cornerRadius: 3)
+                                    .fill(Color.bobGreen.opacity(0.75))
+                                    .frame(width: 12, height: incH)
+                                RoundedRectangle(cornerRadius: 3)
+                                    .fill(Color.bobDebit.opacity(0.75))
+                                    .frame(width: 12, height: expH)
+                            }
+                            Text(item.label)
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundStyle(Color.bobInk3)
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                }
+                .frame(height: 90)
+
+                HStack(spacing: 16) {
+                    HStack(spacing: 5) {
+                        RoundedRectangle(cornerRadius: 2).fill(Color.bobGreen.opacity(0.75)).frame(width: 12, height: 4)
+                        Text("Income").font(.system(size: 11)).foregroundStyle(Color.bobInk2)
+                    }
+                    HStack(spacing: 5) {
+                        RoundedRectangle(cornerRadius: 2).fill(Color.bobDebit.opacity(0.75)).frame(width: 12, height: 4)
+                        Text("Expenses").font(.system(size: 11)).foregroundStyle(Color.bobInk2)
+                    }
+                    Spacer()
+                }
+            }
+            .padding(Spacing.m)
+            .background {
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(Color.bobSurface.opacity(0.8))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .stroke(Color.white.opacity(0.07), lineWidth: 1)
+                    }
+            }
+            .padding(.horizontal, Spacing.pageMargin)
+        }
+    }
+
     // MARK: – Top bar
 
     private var topBar: some View {
@@ -203,8 +458,9 @@ struct HomeView: View {
             if let streak = stats?.currentStreak, streak >= 2 {
                 Button { showingAchievements = true } label: {
                     HStack(spacing: 4) {
-                        Text("🔥")
+                        Image(systemName: "flame.fill")
                             .font(.system(size: 13))
+                            .foregroundStyle(Color.bobAccent)
                         Text("\(streak)")
                             .font(.system(size: 13, weight: .semibold))
                             .foregroundStyle(Color.bobAccent)
@@ -613,7 +869,7 @@ struct HomeView: View {
             HStack {
                 sectionHeader("RECENT TRANSACTIONS")
                 Spacer()
-                Button { onSwitchTab?(.more) } label: {
+                Button { showAllTransactions = true } label: {
                     Text("See All")
                         .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(Color.bobAccent)

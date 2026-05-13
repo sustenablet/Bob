@@ -39,11 +39,11 @@ struct AchievementsView: View {
 
     private var streakSummary: some View {
         HStack(spacing: 0) {
-            streakStat(value: stats?.currentStreak ?? 0, label: "Current streak", emoji: "🔥")
+            streakStat(value: stats?.currentStreak ?? 0, label: "Current streak", icon: "flame.fill")
             Divider().frame(height: 40).padding(.horizontal, Spacing.m)
-            streakStat(value: stats?.longestStreak ?? 0, label: "Longest streak", emoji: "⚡")
+            streakStat(value: stats?.longestStreak ?? 0, label: "Longest streak", icon: "bolt.fill")
             Divider().frame(height: 40).padding(.horizontal, Spacing.m)
-            streakStat(value: stats?.totalLogged ?? 0, label: "Total logged", emoji: "📋")
+            streakStat(value: stats?.totalLogged ?? 0, label: "Total logged", icon: "list.bullet")
         }
         .padding(Spacing.m)
         .frame(maxWidth: .infinity)
@@ -52,10 +52,12 @@ struct AchievementsView: View {
         .overlay(RoundedRectangle(cornerRadius: Radius.card).stroke(Color.bobHairline, lineWidth: 1))
     }
 
-    private func streakStat(value: Int, label: String, emoji: String) -> some View {
+    private func streakStat(value: Int, label: String, icon: String) -> some View {
         VStack(spacing: 4) {
             HStack(spacing: 4) {
-                Text(emoji).font(.system(size: 16))
+                Image(systemName: icon)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(Color.bobAccent)
                 Text("\(value)")
                     .font(.system(size: 22, weight: .bold))
                     .foregroundStyle(Color.bobInk)

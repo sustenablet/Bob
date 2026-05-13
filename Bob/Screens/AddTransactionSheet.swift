@@ -1,6 +1,9 @@
 import SwiftUI
 import SwiftData
-import UIKit
+
+// MARK: – Add Transaction Sheet
+// Quick-capture design: amount is the hero, category is a swipeable strip,
+// details tuck away. Keypad floats over content — nothing ever shifts.
 
 struct AddTransactionSheet: View {
     @Environment(\.modelContext) private var modelContext
@@ -23,7 +26,8 @@ struct AddTransactionSheet: View {
     @State private var date: Date = Date()
     @State private var note: String = ""
     @State private var merchant: String = ""
-    @State private var showDatePicker = false
+    @State private var isKeypadVisible = true
+    @State private var showDetails = false
     @FocusState private var noteFieldFocused: Bool
     @FocusState private var merchantFieldFocused: Bool
 
@@ -39,46 +43,86 @@ struct AddTransactionSheet: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            dragHandle
-            kindToggle.padding(.horizontal, Spacing.pageMargin).padding(.top, Spacing.s)
-            amountDisplay.padding(.horizontal, Spacing.pageMargin).padding(.top, Spacing.m)
+        ZStack(alignment: .bottom) {
+            Color.bobBackground.ignoresSafeArea()
 
-            if !filteredTemplates.isEmpty {
-                templatesRow.padding(.top, Spacing.s)
+            // Accent glow behind amount area
+            accentColor
+                .opacity(0.06)
+                .blur(radius: 60)
+                .frame(height: 280)
+                .frame(maxHeight: .infinity, alignment: .top)
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
+
+            VStack(spacing: 0) {
+                topBar
+
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 20) {
+                        kindToggle
+                            .padding(.top, 6)
+
+                        amountHero
+
+                        if !filteredTemplates.isEmpty {
+                            templatesRow
+                        }
+
+                        categoryStrip
+                        detailsCard
+                    }
+                    .padding(.horizontal, 20)
+                }
+                .safeAreaInset(edge: .bottom) {
+                    Color.clear.frame(height: isKeypadVisible ? 300 : 20)
+                }
+
+                saveBar
             }
 
-            categoryGrid.padding(.top, Spacing.m)
-            detailsSection.padding(.horizontal, Spacing.pageMargin).padding(.top, Spacing.m)
-
-            saveButton.padding(.horizontal, Spacing.pageMargin).padding(.top, Spacing.s)
-            HairlineDivider().padding(.top, Spacing.s)
-            CurrencyKeypad(amount: $amount).background(Color.bobBackground)
+            if isKeypadVisible {
+                keypadFloat
+                    .transition(.move(edge: .bottom))
+            }
         }
-        .background(Color.bobBackground.ignoresSafeArea())
+        .animation(.spring(response: 0.4, dampingFraction: 0.88), value: isKeypadVisible)
+        .animation(.easeOut(duration: 0.2), value: kind)
         .onAppear(perform: hydrate)
         .onChange(of: kind) { _, _ in
             if selectedCategory?.kind != kind { selectedCategory = visibleCategories.first }
         }
+        .onChange(of: merchantFieldFocused) { _, focused in
+            if focused {
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.88)) { isKeypadVisible = false }
+            }
+        }
+        .onChange(of: noteFieldFocused) { _, focused in
+            if focused {
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.88)) { isKeypadVisible = false }
+            }
+        }
     }
 
-    // MARK: – Drag handle
+    // MARK: – Top bar
 
-    private var dragHandle: some View {
-        VStack(spacing: 0) {
-            RoundedRectangle(cornerRadius: 2)
-                .fill(Color.bobSurface3)
+    private var topBar: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 2.5)
+                .fill(Color.bobHairline)
                 .frame(width: 36, height: 4)
-                .padding(.top, 10)
+                .frame(maxWidth: .infinity)
+
+            HStack {
+                Spacer()
+                Button("Cancel") { dismiss() }
+                    .font(.system(size: 15))
+                    .foregroundStyle(Color.bobInk2)
+                    .padding(.trailing, 20)
+            }
         }
-        .frame(maxWidth: .infinity)
-        .overlay(alignment: .topTrailing) {
-            Button("Cancel") { dismiss() }
-                .font(.system(size: 15))
-                .foregroundStyle(Color.bobInk2)
-                .padding(.top, 8).padding(.trailing, Spacing.pageMargin)
-        }
-        .padding(.bottom, Spacing.xs)
+        .padding(.top, 10)
+        .padding(.bottom, 16)
     }
 
     // MARK: – Kind toggle
@@ -87,37 +131,96 @@ struct AddTransactionSheet: View {
         HStack(spacing: 0) {
             ForEach(TransactionKind.allCases) { option in
                 Button {
-                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    HapticManager.light()
                     withAnimation(.easeOut(duration: 0.2)) { kind = option }
                 } label: {
                     HStack(spacing: 6) {
                         Image(systemName: option == .income ? "arrow.down.left" : "arrow.up.right")
                             .font(.system(size: 11, weight: .bold))
-                        Text(option.label).font(.system(size: 14, weight: .semibold))
+                        Text(option.label)
+                            .font(.system(size: 14, weight: .semibold))
                     }
                     .foregroundStyle(kind == option ? .white : Color.bobInk2)
-                    .frame(maxWidth: .infinity).padding(.vertical, 10)
-                    .background(Capsule().fill(kind == option
-                        ? (option == .income ? Color.bobGreen : Color.bobAccent)
-                        : Color.clear))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
+                    .background(Capsule().fill(
+                        kind == option
+                            ? (option == .income ? Color.bobGreen : Color.bobAccent)
+                            : Color.clear
+                    ))
                 }.buttonStyle(.plain)
             }
         }
         .padding(3)
         .background(Capsule().fill(Color.bobSurface))
-        .overlay(Capsule().stroke(Color.bobHairline, lineWidth: 1))
+        .overlay(Capsule().stroke(Color.white.opacity(0.08), lineWidth: 1))
     }
 
-    // MARK: – Amount display
+    // MARK: – Amount hero
 
-    private var amountDisplay: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(kind == .income ? "Amount received" : "Amount spent").eyebrow()
-            BigAmountView(
-                amount: amount, currencyCode: currencyCode, size: 48,
-                tint: amount > 0 ? accentColor : Color.bobInk2
-            )
+    private var amountHero: some View {
+        Button {
+            merchantFieldFocused = false
+            noteFieldFocused = false
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.88)) {
+                isKeypadVisible = true
+            }
+        } label: {
+            VStack(spacing: 10) {
+                Text(kind == .income ? "Amount received" : "Amount spent")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(isKeypadVisible ? accentColor : Color.bobInk2)
+                    .textCase(.uppercase)
+                    .tracking(0.8)
+
+                BigAmountView(
+                    amount: amount,
+                    currencyCode: currencyCode,
+                    size: 54,
+                    tint: amount > 0 ? accentColor : Color.bobInk3
+                )
+
+                if !isKeypadVisible {
+                    Label("Tap to edit", systemImage: "pencil")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(accentColor.opacity(0.7))
+                        .transition(.opacity.combined(with: .move(edge: .bottom)))
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 26)
+            .background {
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .fill(Color.bobSurface.opacity(0.55))
+                    .overlay {
+                        // Top glass sheen
+                        RoundedRectangle(cornerRadius: 22, style: .continuous)
+                            .fill(
+                                LinearGradient(
+                                    colors: [Color.white.opacity(0.06), Color.clear],
+                                    startPoint: .top,
+                                    endPoint: .center
+                                )
+                            )
+                    }
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 22, style: .continuous)
+                            .stroke(
+                                LinearGradient(
+                                    colors: isKeypadVisible
+                                        ? [accentColor.opacity(0.55), accentColor.opacity(0.12)]
+                                        : [Color.white.opacity(0.12), Color.white.opacity(0.04)],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                ),
+                                lineWidth: 1.5
+                            )
+                    }
+            }
         }
+        .buttonStyle(.plain)
+        .animation(.easeOut(duration: 0.22), value: isKeypadVisible)
+        .animation(.easeOut(duration: 0.22), value: amount > 0)
     }
 
     // MARK: – Quick templates
@@ -127,146 +230,342 @@ struct AddTransactionSheet: View {
             HStack(spacing: 8) {
                 ForEach(filteredTemplates) { t in
                     Button { applyTemplate(t) } label: {
-                        HStack(spacing: 4) {
-                            Text(t.name).font(.system(size: 12, weight: .medium))
+                        HStack(spacing: 5) {
+                            Text(t.name)
+                                .font(.system(size: 12, weight: .semibold))
                             Text(CurrencyFormatter.string(t.amount, code: currencyCode))
-                                .font(.system(size: 11)).foregroundStyle(Color.bobInk2)
+                                .font(.system(size: 11))
+                                .foregroundStyle(Color.bobInk2)
                         }
                         .foregroundStyle(Color.bobInk)
-                        .padding(.horizontal, 12).padding(.vertical, 7)
+                        .padding(.horizontal, 13)
+                        .padding(.vertical, 8)
                         .background(Color.bobSurface)
                         .clipShape(Capsule())
-                        .overlay(Capsule().stroke(Color.bobHairline, lineWidth: 1))
+                        .overlay(Capsule().stroke(Color.white.opacity(0.08), lineWidth: 1))
                     }.buttonStyle(.plain)
                 }
-            }.padding(.horizontal, Spacing.pageMargin)
+            }
+            .padding(.horizontal, 20)
         }
+        .padding(.horizontal, -20)
     }
 
     private func applyTemplate(_ t: QuickAddTemplate) {
         amount = t.amount; selectedCategory = t.category; HapticManager.light()
     }
 
-    // MARK: – Category grid
+    // MARK: – Category strip
 
-    private var categoryGrid: some View {
-        let cols = Array(repeating: GridItem(.flexible(), spacing: 0), count: 4)
-        return LazyVGrid(columns: cols, spacing: 0) {
-            ForEach(visibleCategories, id: \.id) { cat in
-                categoryCell(cat)
+    private var categoryStrip: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Category")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(Color.bobInk2)
+                .textCase(.uppercase)
+                .tracking(0.7)
+                .padding(.horizontal, 2)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(visibleCategories, id: \.id) { cat in
+                        categoryPill(cat)
+                    }
+                }
+                .padding(.horizontal, 20)
             }
+            .padding(.horizontal, -20)
         }
-        .padding(.horizontal, Spacing.pageMargin)
     }
 
-    private func categoryCell(_ cat: ExpenseCategory) -> some View {
+    private func categoryPill(_ cat: ExpenseCategory) -> some View {
         let isSelected = selectedCategory?.id == cat.id
         return Button {
             selectedCategory = cat
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            HapticManager.light()
         } label: {
-            VStack(spacing: 5) {
+            HStack(spacing: 7) {
                 ZStack {
                     Circle()
-                        .fill(isSelected ? accentColor : Color.bobSurface)
-                        .frame(width: 48, height: 48)
-                    Circle()
-                        .stroke(isSelected ? accentColor : Color.bobHairline, lineWidth: 1)
-                        .frame(width: 48, height: 48)
+                        .fill(isSelected ? Color.white.opacity(0.2) : Color.white.opacity(0.06))
+                        .frame(width: 28, height: 28)
                     Image(systemName: cat.sfSymbol)
-                        .font(.system(size: 17, weight: .medium))
+                        .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(isSelected ? .white : Color.bobInk2)
                 }
                 Text(cat.name)
-                    .font(.system(size: 10, weight: isSelected ? .semibold : .regular))
-                    .foregroundStyle(isSelected ? accentColor : Color.bobInk2)
-                    .lineLimit(1).minimumScaleFactor(0.7)
+                    .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
+                    .foregroundStyle(isSelected ? .white : Color.bobInk2)
             }
-            .padding(.vertical, 9)
-            .frame(maxWidth: .infinity)
+            .padding(.leading, 6)
+            .padding(.trailing, 14)
+            .padding(.vertical, 6)
+            .background {
+                Capsule()
+                    .fill(isSelected ? accentColor : Color.bobSurface.opacity(0.8))
+                    .overlay {
+                        Capsule()
+                            .stroke(
+                                isSelected ? Color.white.opacity(0.15) : Color.white.opacity(0.07),
+                                lineWidth: 1
+                            )
+                    }
+            }
         }
         .buttonStyle(.plain)
-        .animation(.easeOut(duration: 0.12), value: selectedCategory?.id)
+        .animation(.easeOut(duration: 0.14), value: isSelected)
     }
 
-    // MARK: – Details section (always visible, no expanding)
+    // MARK: – Details card
 
-    private var detailsSection: some View {
+    private var detailsCard: some View {
         VStack(spacing: 0) {
-            // Date row — compact date picker (no layout shift)
-            HStack(spacing: 12) {
-                Image(systemName: "calendar")
-                    .font(.system(size: 15)).foregroundStyle(Color.bobInk2).frame(width: 20)
-                Text("Date").font(.system(size: 14)).foregroundStyle(Color.bobInk2)
-                Spacer()
-                DatePicker("", selection: $date, displayedComponents: [.date])
-                    .datePickerStyle(.compact)
-                    .labelsHidden()
-                    .tint(accentColor)
-                    .colorScheme(.dark)
+            // Toggle header
+            Button {
+                HapticManager.light()
+                withAnimation(.easeOut(duration: 0.2)) { showDetails.toggle() }
+            } label: {
+                HStack {
+                    Image(systemName: "slider.horizontal.3")
+                        .font(.system(size: 13))
+                        .foregroundStyle(Color.bobInk2)
+                    Text("Details")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(Color.bobInk2)
+                    Spacer()
+                    if !showDetails {
+                        detailsPreview
+                    }
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(Color.bobInk3)
+                        .rotationEffect(.degrees(showDetails ? 180 : 0))
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 14)
             }
-            .padding(.horizontal, Spacing.m)
-            .padding(.vertical, 13)
+            .buttonStyle(.plain)
 
-            Divider().background(Color.bobHairline).padding(.leading, 52)
+            if showDetails {
+                Rectangle()
+                    .fill(Color.white.opacity(0.06))
+                    .frame(height: 1)
+                    .padding(.horizontal, 0)
 
-            // Merchant / Source row
-            HStack(spacing: 12) {
-                Image(systemName: kind == .income ? "person.fill" : "storefront")
-                    .font(.system(size: 15)).foregroundStyle(Color.bobInk2).frame(width: 20)
-                TextField(kind == .income ? "Source (optional)" : "Merchant (optional)", text: $merchant)
+                // Date row
+                HStack(spacing: 12) {
+                    Image(systemName: "calendar")
+                        .font(.system(size: 14))
+                        .foregroundStyle(Color.bobInk2)
+                        .frame(width: 22)
+                    Text("Date")
+                        .font(.system(size: 14))
+                        .foregroundStyle(Color.bobInk2)
+                    Spacer()
+                    DatePicker("", selection: $date, displayedComponents: [.date])
+                        .datePickerStyle(.compact)
+                        .labelsHidden()
+                        .tint(accentColor)
+                        .colorScheme(.dark)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 13)
+
+                Rectangle()
+                    .fill(Color.white.opacity(0.06))
+                    .frame(height: 1)
+                    .padding(.leading, 50)
+
+                // Merchant / Source
+                HStack(spacing: 12) {
+                    Image(systemName: kind == .income ? "person.fill" : "storefront")
+                        .font(.system(size: 14))
+                        .foregroundStyle(Color.bobInk2)
+                        .frame(width: 22)
+                    TextField(
+                        kind == .income ? "Source (optional)" : "Merchant (optional)",
+                        text: $merchant
+                    )
                     .font(.system(size: 14))
                     .foregroundStyle(Color.bobInk)
                     .focused($merchantFieldFocused)
                     .submitLabel(.next)
                     .onSubmit { noteFieldFocused = true }
-            }
-            .padding(.horizontal, Spacing.m)
-            .padding(.vertical, 13)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 13)
 
-            Divider().background(Color.bobHairline).padding(.leading, 52)
+                Rectangle()
+                    .fill(Color.white.opacity(0.06))
+                    .frame(height: 1)
+                    .padding(.leading, 50)
 
-            // Note row
-            HStack(spacing: 12) {
-                Image(systemName: "pencil")
-                    .font(.system(size: 15)).foregroundStyle(Color.bobInk2).frame(width: 20)
-                TextField("Add a note (optional)", text: $note)
-                    .font(.system(size: 14))
-                    .foregroundStyle(Color.bobInk)
-                    .focused($noteFieldFocused)
-                    .submitLabel(.done)
-                    .onSubmit { noteFieldFocused = false }
+                // Note
+                HStack(spacing: 12) {
+                    Image(systemName: "text.bubble")
+                        .font(.system(size: 14))
+                        .foregroundStyle(Color.bobInk2)
+                        .frame(width: 22)
+                    TextField("Note (optional)", text: $note)
+                        .font(.system(size: 14))
+                        .foregroundStyle(Color.bobInk)
+                        .focused($noteFieldFocused)
+                        .submitLabel(.done)
+                        .onSubmit { noteFieldFocused = false }
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 13)
             }
-            .padding(.horizontal, Spacing.m)
-            .padding(.vertical, 13)
         }
-        .background(Color.bobSurface)
-        .clipShape(RoundedRectangle(cornerRadius: 14))
-        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.bobHairline, lineWidth: 1))
+        .background {
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color.bobSurface.opacity(0.7))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(Color.white.opacity(0.07), lineWidth: 1)
+                }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
-    // MARK: – Save button
-
-    private var saveButton: some View {
-        Button { save() } label: {
-            Text(saveLabel)
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(canSave ? .white : Color.bobInk2)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 16)
-                .background(canSave ? accentColor : Color.bobSurface)
-                .clipShape(Capsule())
-                .overlay(Capsule().stroke(canSave ? Color.clear : Color.bobHairline, lineWidth: 1))
+    private var detailsPreview: some View {
+        HStack(spacing: 6) {
+            if !merchant.isEmpty {
+                Text(merchant)
+                    .font(.system(size: 12))
+                    .foregroundStyle(Color.bobInk2)
+            }
+            if !note.isEmpty {
+                Text(note)
+                    .font(.system(size: 12))
+                    .foregroundStyle(Color.bobInk3)
+            }
+            let cal = Calendar.current
+            if !cal.isDateInToday(date) {
+                Text(date, style: .date)
+                    .font(.system(size: 12))
+                    .foregroundStyle(Color.bobInk3)
+            }
         }
-        .disabled(!canSave)
-        .animation(.easeOut(duration: 0.15), value: canSave)
+    }
+
+    // MARK: – Save bar
+
+    private var saveBar: some View {
+        VStack(spacing: 0) {
+            Rectangle()
+                .fill(Color.white.opacity(0.06))
+                .frame(height: 1)
+
+            Button { save() } label: {
+                Text(saveLabel)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(canSave ? .white : Color.bobInk2)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+                    .background(canSave ? accentColor : Color.bobSurface)
+                    .clipShape(Capsule())
+                    .overlay(
+                        Capsule().stroke(
+                            canSave ? Color.clear : Color.white.opacity(0.08),
+                            lineWidth: 1
+                        )
+                    )
+            }
+            .disabled(!canSave)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 14)
+            .animation(.easeOut(duration: 0.15), value: canSave)
+        }
+        .background(Color.bobBackground)
+    }
+
+    // MARK: – Keypad float overlay
+
+    private var keypadFloat: some View {
+        VStack(spacing: 0) {
+            // Handle + amount preview + done
+            HStack(alignment: .center) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(kind == .income ? "Income" : "Expense")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(Color.bobInk3)
+                        .textCase(.uppercase)
+                        .tracking(0.9)
+                    BigAmountView(
+                        amount: amount,
+                        currencyCode: currencyCode,
+                        size: 26,
+                        tint: amount > 0 ? accentColor : Color.bobInk3
+                    )
+                }
+                Spacer()
+                Button {
+                    HapticManager.light()
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.88)) {
+                        isKeypadVisible = false
+                    }
+                } label: {
+                    Text("Done")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 22)
+                        .padding(.vertical, 9)
+                        .background(accentColor)
+                        .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 16)
+            .padding(.bottom, 13)
+            .background {
+                LinearGradient(
+                    colors: [Color.white.opacity(0.07), Color.clear],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            }
+
+            Rectangle()
+                .fill(Color.white.opacity(0.09))
+                .frame(height: 1)
+
+            CurrencyKeypad(amount: $amount)
+        }
+        .background {
+            ZStack {
+                Color(red: 0.09, green: 0.09, blue: 0.09)
+                LinearGradient(
+                    colors: [Color.white.opacity(0.05), Color.clear],
+                    startPoint: .top,
+                    endPoint: UnitPoint(x: 0.5, y: 0.3)
+                )
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .stroke(
+                    LinearGradient(
+                        colors: [Color.white.opacity(0.2), Color.white.opacity(0.05)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    ),
+                    lineWidth: 1
+                )
+        }
+        .shadow(color: .black.opacity(0.6), radius: 40, y: -6)
+        .ignoresSafeArea(edges: .bottom)
     }
 
     // MARK: – Helpers
 
     private func hydrate() {
+        isKeypadVisible = expenseToEdit == nil
         guard let expense = expenseToEdit else {
-            selectedCategory = visibleCategories.first; return
+            selectedCategory = visibleCategories.first
+            return
         }
         kind = expense.kind
         amount = expense.amount
@@ -274,26 +573,31 @@ struct AddTransactionSheet: View {
         note = expense.note ?? ""
         merchant = expense.merchant ?? ""
         selectedCategory = expense.category
+        showDetails = !(note.isEmpty && merchant.isEmpty && Calendar.current.isDateInToday(date))
     }
 
     private func save() {
         guard canSave else { return }
-        UINotificationFeedbackGenerator().notificationOccurred(.success)
+        HapticManager.success()
         let trimNote     = note.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimMerchant = merchant.trimmingCharacters(in: .whitespacesAndNewlines)
         let isNewTransaction = expenseToEdit == nil
 
         if let expense = expenseToEdit {
-            expense.amount = amount; expense.date = date
+            expense.amount = amount
+            expense.date = date
             expense.note = trimNote.isEmpty ? nil : trimNote
             expense.merchant = trimMerchant.isEmpty ? nil : trimMerchant
-            expense.category = selectedCategory; expense.kind = kind
+            expense.category = selectedCategory
+            expense.kind = kind
         } else {
             modelContext.insert(Expense(
-                amount: amount, date: date,
+                amount: amount,
+                date: date,
                 note: trimNote.isEmpty ? nil : trimNote,
                 merchant: trimMerchant.isEmpty ? nil : trimMerchant,
-                category: selectedCategory, kind: kind
+                category: selectedCategory,
+                kind: kind
             ))
         }
         try? modelContext.save()

@@ -55,25 +55,14 @@ struct GoalsView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                Color.bobBackground.ignoresSafeArea()
-                if goals.isEmpty { emptyState } else { goalsList }
-            }
-            .navigationBarHidden(true)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button { showAddGoal = true } label: {
-                        Image(systemName: "plus")
-                            .font(.system(size: 18, weight: .medium))
-                            .foregroundStyle(Color.bobInk)
-                    }
-                }
-            }
-            .sheet(isPresented: $showAddGoal) { AddGoalSheet(currencyCode: currencyCode) }
-            .sheet(item: $selectedGoal) { goal in GoalDetailView(goal: goal, currencyCode: currencyCode) }
-            .sheet(item: $addContributionGoal) { goal in AddContributionSheet(goal: goal, currencyCode: currencyCode) }
+        ZStack {
+            Color.bobBackground.ignoresSafeArea()
+            if goals.isEmpty { emptyState } else { goalsList }
         }
+        .navigationBarHidden(true)
+        .sheet(isPresented: $showAddGoal) { AddGoalSheet(currencyCode: currencyCode) }
+        .sheet(item: $selectedGoal) { goal in GoalDetailView(goal: goal, currencyCode: currencyCode) }
+        .sheet(item: $addContributionGoal) { goal in AddContributionSheet(goal: goal, currencyCode: currencyCode) }
     }
 
     // MARK: – Empty state
@@ -216,48 +205,78 @@ struct GoalsView: View {
             HStack(alignment: .center) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Total Savings")
-                        .font(.system(size: 13, weight: .semibold)).foregroundStyle(Color.bobInk2)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(Color.bobInk2)
+                        .textCase(.uppercase)
+                        .tracking(0.6)
                     Text(CurrencyFormatter.string(totalSaved, code: currencyCode))
-                        .font(.system(size: 28, weight: .bold)).foregroundStyle(Color.bobInk)
-                    Text(CurrencyFormatter.string(remaining, code: currencyCode) + " remaining")
+                        .font(.system(size: 30, weight: .bold)).foregroundStyle(Color.bobInk)
+                        .contentTransition(.numericText())
+                    Text(CurrencyFormatter.string(remaining, code: currencyCode) + " to go")
                         .font(.system(size: 13)).foregroundStyle(Color.bobInk2)
                 }
                 Spacer()
                 ZStack {
-                    Circle().stroke(Color.bobHairline, lineWidth: 8).frame(width: 68, height: 68)
-                    Circle().trim(from: 0, to: progress)
-                        .stroke(Color.bobAccent, style: StrokeStyle(lineWidth: 8, lineCap: .round))
+                    Circle()
+                        .stroke(Color.bobSurface2, lineWidth: 9)
+                        .frame(width: 72, height: 72)
+                    Circle()
+                        .trim(from: 0, to: progress)
+                        .stroke(Color.bobAccent, style: StrokeStyle(lineWidth: 9, lineCap: .round))
                         .rotationEffect(.degrees(-90))
-                        .frame(width: 68, height: 68)
-                        .animation(.spring(response: 0.6), value: progress)
+                        .frame(width: 72, height: 72)
+                        .animation(.spring(response: 0.6, dampingFraction: 0.8), value: progress)
                     Text("\(Int(progress * 100))%")
-                        .font(.system(size: 13, weight: .bold)).foregroundStyle(Color.bobInk)
+                        .font(.system(size: 14, weight: .bold)).foregroundStyle(Color.bobInk)
                 }
             }
+
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 4).fill(Color.bobHairline).frame(height: 6)
-                    RoundedRectangle(cornerRadius: 4).fill(Color.bobAccent)
+                    RoundedRectangle(cornerRadius: 4).fill(Color.bobSurface2).frame(height: 6)
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(
+                            LinearGradient(
+                                colors: [Color.bobAccent.opacity(0.7), Color.bobAccent],
+                                startPoint: .leading, endPoint: .trailing
+                            )
+                        )
                         .frame(width: geo.size.width * progress, height: 6)
+                        .animation(.spring(response: 0.5), value: progress)
                 }
             }
             .frame(height: 6)
-            HStack(spacing: 16) {
+
+            HStack(spacing: 12) {
                 if onTrack > 0 {
                     Label("\(onTrack) on track", systemImage: "checkmark.circle.fill")
-                        .font(.system(size: 12, weight: .medium)).foregroundStyle(Color.bobAccent)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Color.bobAccent)
+                        .padding(.horizontal, 10).padding(.vertical, 5)
+                        .background(Color.bobAccent.opacity(0.12))
+                        .clipShape(Capsule())
                 }
                 if behind > 0 {
                     Label("\(behind) at risk", systemImage: "exclamationmark.circle.fill")
-                        .font(.system(size: 12, weight: .medium)).foregroundStyle(Color.bobDebit)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Color.bobDebit)
+                        .padding(.horizontal, 10).padding(.vertical, 5)
+                        .background(Color.bobDebit.opacity(0.12))
+                        .clipShape(Capsule())
                 }
                 Spacer()
             }
         }
         .padding(Spacing.m)
-        .background(Color.bobSurface)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.bobHairline, lineWidth: 1))
+        .background {
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color.bobSurface.opacity(0.8))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(Color.white.opacity(0.09), lineWidth: 1)
+                }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
     private func sectionHeader(_ title: String) -> some View {
@@ -303,7 +322,8 @@ struct GoalCard: View {
             VStack(spacing: 14) {
                 // Top row: emoji + name + add button
                 HStack(alignment: .center) {
-                    Text(goal.emoji).font(.system(size: 24))
+                    GoalIconView(iconName: goal.iconName, photoData: goal.photoData, size: 32, showBackground: false)
+                        .padding(.trailing, 2)
                     Text(goal.name)
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundStyle(Color.bobInk)
@@ -388,13 +408,21 @@ struct GoalCard: View {
                 }
             }
             .padding(Spacing.m)
-            .background(cardBackground)
-            .background(Color.bobSurface)
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .overlay(
+            .background {
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .stroke(health.color.opacity(health.status == "onTrack" ? 0.2 : health.status == "noSaves" ? 0 : 0.35), lineWidth: 1.5)
-            )
+                    .fill(Color.bobSurface)
+                    .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(cardBackground))
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(
+                        health.status == "noSaves"
+                            ? Color.white.opacity(0.07)
+                            : health.color.opacity(health.status == "onTrack" ? 0.25 : 0.45),
+                        lineWidth: 1.5
+                    )
+            }
         }
         .buttonStyle(GoalCardPressStyle())
     }

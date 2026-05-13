@@ -24,6 +24,7 @@ struct CategoryTransactionsView: View {
     }
 
     private var total: Decimal { filtered.reduce(0) { $0 + $1.amount } }
+    private var average: Decimal { filtered.isEmpty ? 0 : total / Decimal(filtered.count) }
 
     private var byDay: [Date: [Expense]] {
         Dictionary(grouping: filtered) { Calendar.current.startOfDay(for: $0.date) }
@@ -35,40 +36,11 @@ struct CategoryTransactionsView: View {
         ZStack {
             Color.bobBackground.ignoresSafeArea()
 
-            if filtered.isEmpty {
-                VStack(spacing: 16) {
-                    Spacer()
-                    Image(systemName: symbol).font(.system(size: 48)).foregroundStyle(Color.bobInk2)
-                    Text("No transactions").font(.system(size: 18, weight: .semibold)).foregroundStyle(Color.bobInk)
-                    Text("No \(categoryName.lowercased()) transactions for this period")
-                        .font(.bobBody).foregroundStyle(Color.bobInk2).multilineTextAlignment(.center)
-                    Spacer()
+            VStack(spacing: 0) {
+                if !filtered.isEmpty {
+                    summaryStrip
                 }
-                .padding()
-            } else {
-                List {
-                    ForEach(sortedDays, id: \.self) { day in
-                        Section {
-                            ForEach(byDay[day] ?? [], id: \.id) { tx in
-                                Button { editingExpense = tx } label: {
-                                    ExpenseRow(expense: tx, currencyCode: currencyCode)
-                                }
-                                .buttonStyle(.plain)
-                                .listRowBackground(Color.bobSurface)
-                                .listRowInsets(EdgeInsets(top: 0, leading: Spacing.pageMargin, bottom: 0, trailing: Spacing.pageMargin))
-                                .listRowSeparatorTint(Color.bobHairline)
-                            }
-                        } header: {
-                            Text(dayLabel(for: day))
-                                .eyebrow()
-                                .padding(.vertical, Spacing.xs)
-                                .background(Color.bobBackground)
-                        }
-                    }
-                }
-                .listStyle(.plain)
-                .scrollContentBackground(.hidden)
-                .background(Color.bobBackground)
+                mainContent
             }
         }
         .navigationTitle(categoryName)
@@ -89,6 +61,99 @@ struct CategoryTransactionsView: View {
         }
         .sheet(item: $editingExpense) { tx in
             AddTransactionSheet(currencyCode: currencyCode, expenseToEdit: tx)
+        }
+    }
+
+    // MARK: – Summary strip
+
+    private var summaryStrip: some View {
+        HStack(spacing: 0) {
+            summaryCell(
+                icon: "sum",
+                iconColor: kind == .expense ? Color.bobDebit : Color.bobGreen,
+                label: "Total",
+                value: CurrencyFormatter.string(total, code: currencyCode)
+            )
+            Rectangle().fill(Color.white.opacity(0.07)).frame(width: 1, height: 36)
+            summaryCell(
+                icon: "number",
+                iconColor: Color.bobChartBlue,
+                label: "Transactions",
+                value: "\(filtered.count)"
+            )
+            Rectangle().fill(Color.white.opacity(0.07)).frame(width: 1, height: 36)
+            summaryCell(
+                icon: "divide",
+                iconColor: Color.bobInk2,
+                label: "Average",
+                value: CurrencyFormatter.string(average, code: currencyCode)
+            )
+        }
+        .padding(.vertical, 12)
+        .background(Color.bobSurface.opacity(0.8))
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(Color.white.opacity(0.06)).frame(height: 1)
+        }
+    }
+
+    private func summaryCell(icon: String, iconColor: Color, label: String, value: String) -> some View {
+        VStack(spacing: 4) {
+            HStack(spacing: 4) {
+                Image(systemName: icon)
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(iconColor)
+                Text(label)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(Color.bobInk2)
+            }
+            Text(value)
+                .font(.system(size: 14, weight: .bold))
+                .monospacedDigit()
+                .foregroundStyle(Color.bobInk)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    // MARK: – Main content
+
+    @ViewBuilder
+    private var mainContent: some View {
+        if filtered.isEmpty {
+            VStack(spacing: 16) {
+                Spacer()
+                Image(systemName: symbol).font(.system(size: 48)).foregroundStyle(Color.bobInk2)
+                Text("No transactions").font(.system(size: 18, weight: .semibold)).foregroundStyle(Color.bobInk)
+                Text("No \(categoryName.lowercased()) transactions for this period")
+                    .font(.bobBody).foregroundStyle(Color.bobInk2).multilineTextAlignment(.center)
+                Spacer()
+            }
+            .padding()
+        } else {
+            List {
+                ForEach(sortedDays, id: \.self) { day in
+                    Section {
+                        ForEach(byDay[day] ?? [], id: \.id) { tx in
+                            Button { editingExpense = tx } label: {
+                                ExpenseRow(expense: tx, currencyCode: currencyCode)
+                            }
+                            .buttonStyle(.plain)
+                            .listRowBackground(Color.bobSurface)
+                            .listRowInsets(EdgeInsets(top: 0, leading: Spacing.pageMargin, bottom: 0, trailing: Spacing.pageMargin))
+                            .listRowSeparatorTint(Color.bobHairline)
+                        }
+                    } header: {
+                        Text(dayLabel(for: day))
+                            .eyebrow()
+                            .padding(.vertical, Spacing.xs)
+                            .background(Color.bobBackground)
+                    }
+                }
+            }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .background(Color.bobBackground)
         }
     }
 

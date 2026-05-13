@@ -47,6 +47,22 @@ struct RecurringTransactionsView: View {
 
     private var dueSoonTotal: Decimal { dueSoon.reduce(0) { $0 + $1.amount } }
 
+    private var monthlyExpenseCommitment: Decimal {
+        activeRecurrings.filter { $0.kind == .expense }.reduce(0) { $0 + monthlyEquivalent($1) }
+    }
+
+    private var monthlyIncomeCommitment: Decimal {
+        activeRecurrings.filter { $0.kind == .income }.reduce(0) { $0 + monthlyEquivalent($1) }
+    }
+
+    private var annualExpense: Decimal { monthlyExpenseCommitment * 12 }
+    private var annualIncome: Decimal { monthlyIncomeCommitment * 12 }
+
+    private var subscriptionsByKind: (expenses: [RecurringTransaction], incomes: [RecurringTransaction]) {
+        (activeRecurrings.filter { $0.kind == .expense }.sorted { $0.amount > $1.amount },
+         activeRecurrings.filter { $0.kind == .income }.sorted { $0.amount > $1.amount })
+    }
+
     // MARK: – Body
 
     var body: some View {
@@ -142,9 +158,12 @@ struct RecurringTransactionsView: View {
 
     private var upcomingContent: some View {
         VStack(spacing: Spacing.m) {
-            comingUpCard
+            monthlyOverviewCard
                 .padding(.horizontal, Spacing.pageMargin)
                 .padding(.top, Spacing.m)
+
+            comingUpCard
+                .padding(.horizontal, Spacing.pageMargin)
 
             paydayViewCard
                 .padding(.horizontal, Spacing.pageMargin)
@@ -156,8 +175,302 @@ struct RecurringTransactionsView: View {
                 dueLaterSection
             }
 
+            allActiveCard
+                .padding(.horizontal, Spacing.pageMargin)
+
+            annualProjectionCard
+                .padding(.horizontal, Spacing.pageMargin)
+
             Spacer().frame(height: 100)
         }
+    }
+
+    // MARK: – Monthly commitments overview card
+    private var monthlyOverviewCard: some View {
+        VStack(spacing: 0) {
+            // Header
+            HStack {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Monthly Commitments")
+                        .font(.system(size: 17, weight: .bold))
+                        .foregroundStyle(Color.bobInk)
+                    Text("\(activeRecurrings.count) active recurring")
+                        .font(.system(size: 13))
+                        .foregroundStyle(Color.bobInk2)
+                }
+                Spacer()
+                Image(systemName: "repeat.circle.fill")
+                    .font(.system(size: 26))
+                    .foregroundStyle(Color.bobAccent)
+            }
+            .padding(.horizontal, Spacing.m)
+            .padding(.top, Spacing.m)
+            .padding(.bottom, 14)
+
+            Rectangle().fill(Color.white.opacity(0.06)).frame(height: 1)
+
+            HStack(spacing: 0) {
+                VStack(spacing: 3) {
+                    Text("OUT / month")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(Color.bobInk2)
+                        .textCase(.uppercase).tracking(0.5)
+                    Text(CurrencyFormatter.string(monthlyExpenseCommitment, code: currencyCode))
+                        .font(.system(size: 19, weight: .bold))
+                        .foregroundStyle(Color.bobDebit)
+                        .monospacedDigit()
+                        .contentTransition(.numericText())
+                }
+                .frame(maxWidth: .infinity)
+
+                Rectangle().fill(Color.white.opacity(0.06)).frame(width: 1, height: 44)
+
+                VStack(spacing: 3) {
+                    Text("IN / month")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(Color.bobInk2)
+                        .textCase(.uppercase).tracking(0.5)
+                    Text(CurrencyFormatter.string(monthlyIncomeCommitment, code: currencyCode))
+                        .font(.system(size: 19, weight: .bold))
+                        .foregroundStyle(Color.bobGreen)
+                        .monospacedDigit()
+                        .contentTransition(.numericText())
+                }
+                .frame(maxWidth: .infinity)
+
+                Rectangle().fill(Color.white.opacity(0.06)).frame(width: 1, height: 44)
+
+                let net = monthlyIncomeCommitment - monthlyExpenseCommitment
+                VStack(spacing: 3) {
+                    Text("Net / month")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(Color.bobInk2)
+                        .textCase(.uppercase).tracking(0.5)
+                    Text((net >= 0 ? "+" : "") + CurrencyFormatter.string(net, code: currencyCode))
+                        .font(.system(size: 19, weight: .bold))
+                        .foregroundStyle(net >= 0 ? Color.bobGreen : Color.bobDebit)
+                        .monospacedDigit()
+                        .contentTransition(.numericText())
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .padding(.horizontal, Spacing.m)
+            .padding(.vertical, 14)
+        }
+        .background {
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color.bobSurface.opacity(0.8))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(Color.white.opacity(0.07), lineWidth: 1)
+                }
+        }
+    }
+
+    // MARK: – Annual projection card
+    private var annualProjectionCard: some View {
+        let net = annualIncome - annualExpense
+        return VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Text("Annual Projection")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(Color.bobInk)
+                Spacer()
+                Text("Based on current recurring")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Color.bobInk3)
+            }
+
+            HStack(spacing: 8) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Committed costs")
+                        .font(.system(size: 11))
+                        .foregroundStyle(Color.bobInk2)
+                    Text(CurrencyFormatter.string(annualExpense, code: currencyCode))
+                        .font(.system(size: 17, weight: .bold))
+                        .foregroundStyle(Color.bobDebit)
+                        .monospacedDigit()
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Committed income")
+                        .font(.system(size: 11))
+                        .foregroundStyle(Color.bobInk2)
+                    Text(CurrencyFormatter.string(annualIncome, code: currencyCode))
+                        .font(.system(size: 17, weight: .bold))
+                        .foregroundStyle(Color.bobGreen)
+                        .monospacedDigit()
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            // Stacked bar
+            GeometryReader { geo in
+                let total = max((annualExpense + annualIncome as NSDecimalNumber).doubleValue, 1.0)
+                let expW = geo.size.width * CGFloat((annualExpense as NSDecimalNumber).doubleValue / total)
+                let incW = geo.size.width - expW
+                HStack(spacing: 3) {
+                    if expW > 0 {
+                        RoundedRectangle(cornerRadius: 4).fill(Color.bobDebit.opacity(0.7)).frame(width: expW, height: 10)
+                    }
+                    if incW > 0 {
+                        RoundedRectangle(cornerRadius: 4).fill(Color.bobGreen.opacity(0.7)).frame(width: incW, height: 10)
+                    }
+                }
+            }
+            .frame(height: 10)
+
+            HStack {
+                Text("Annual net:")
+                    .font(.system(size: 13))
+                    .foregroundStyle(Color.bobInk2)
+                Text((net >= 0 ? "+" : "") + CurrencyFormatter.string(net, code: currencyCode))
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(net >= 0 ? Color.bobGreen : Color.bobDebit)
+                    .monospacedDigit()
+            }
+        }
+        .padding(Spacing.m)
+        .background {
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color.bobSurface.opacity(0.8))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(Color.white.opacity(0.07), lineWidth: 1)
+                }
+        }
+    }
+
+    // MARK: – All active subscriptions compact grid
+    private var allActiveCard: some View {
+        let subs = subscriptionsByKind
+        guard !activeRecurrings.isEmpty else { return AnyView(EmptyView()) }
+
+        return AnyView(
+            VStack(alignment: .leading, spacing: 12) {
+                Text("ALL ACTIVE")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Color.bobInk2)
+                    .tracking(0.8)
+
+                if !subs.expenses.isEmpty {
+                    Text("Expenses")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(Color.bobDebit)
+                        .textCase(.uppercase)
+                        .tracking(0.5)
+                    VStack(spacing: 0) {
+                        ForEach(Array(subs.expenses.enumerated()), id: \.element.id) { idx, r in
+                            compactRecurRow(r)
+                            if idx < subs.expenses.count - 1 {
+                                Rectangle().fill(Color.white.opacity(0.05)).frame(height: 1).padding(.leading, 52)
+                            }
+                        }
+                    }
+                    .background {
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .fill(Color.bobSurface.opacity(0.8))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                    .stroke(Color.white.opacity(0.07), lineWidth: 1)
+                            }
+                    }
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                }
+
+                if !subs.incomes.isEmpty {
+                    Text("Income")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(Color.bobGreen)
+                        .textCase(.uppercase)
+                        .tracking(0.5)
+                        .padding(.top, 4)
+                    VStack(spacing: 0) {
+                        ForEach(Array(subs.incomes.enumerated()), id: \.element.id) { idx, r in
+                            compactRecurRow(r)
+                            if idx < subs.incomes.count - 1 {
+                                Rectangle().fill(Color.white.opacity(0.05)).frame(height: 1).padding(.leading, 52)
+                            }
+                        }
+                    }
+                    .background {
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .fill(Color.bobSurface.opacity(0.8))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                    .stroke(Color.white.opacity(0.07), lineWidth: 1)
+                            }
+                    }
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                }
+            }
+            .padding(Spacing.m)
+            .background {
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(Color.bobSurface.opacity(0.5))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                    }
+            }
+        )
+    }
+
+    private func compactRecurRow(_ r: RecurringTransaction) -> some View {
+        let isIncome = r.kind == .income
+        let color: Color = isIncome ? Color.bobGreen : Color.bobDebit
+        let freqLabel: String = {
+            switch r.frequency {
+            case .weekly: return "wk"
+            case .biweekly: return "2wk"
+            case .monthly: return "mo"
+            case .yearly: return "yr"
+            }
+        }()
+
+        return HStack(spacing: 12) {
+            ZStack {
+                Circle().fill(color.opacity(0.18)).frame(width: 36, height: 36)
+                Image(systemName: isIncome ? "arrow.down.circle.fill" : (r.category?.sfSymbol ?? "arrow.up.circle.fill"))
+                    .font(.system(size: 16)).foregroundStyle(color)
+            }
+
+            Text(r.name)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(Color.bobInk)
+                .lineLimit(1)
+
+            Spacer()
+
+            VStack(alignment: .trailing, spacing: 2) {
+                Text((isIncome ? "+" : "") + CurrencyFormatter.string(r.amount, code: currencyCode))
+                    .font(.system(size: 13, weight: .bold))
+                    .monospacedDigit()
+                    .foregroundStyle(isIncome ? Color.bobGreen : Color.bobInk)
+                Text("/ \(freqLabel)")
+                    .font(.system(size: 10))
+                    .foregroundStyle(Color.bobInk3)
+            }
+
+            Menu {
+                Button { editingRecurring = r } label: { Label("Edit", systemImage: "pencil") }
+                Button {
+                    r.isActive.toggle(); try? modelContext.save(); HapticManager.light()
+                } label: {
+                    Label(r.isActive ? "Pause" : "Resume", systemImage: r.isActive ? "pause.circle" : "play.circle")
+                }
+                Divider()
+                Button(role: .destructive) { deletingRecurring = r } label: { Label("Delete", systemImage: "trash") }
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Color.bobInk2)
+                    .frame(width: 24, height: 24)
+            }
+        }
+        .padding(.horizontal, Spacing.m)
+        .padding(.vertical, 11)
     }
 
     // MARK: – "Coming up" card with mini calendar

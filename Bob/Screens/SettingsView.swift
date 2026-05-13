@@ -17,6 +17,7 @@ struct SettingsView: View {
     @AppStorage("userName")          var userName          = ""
     @AppStorage("dailyReminder")     var dailyReminder     = false
     @AppStorage("budgetAlerts")      var budgetAlerts      = true
+    @AppStorage("appearanceMode")    var appearanceMode    = "system"
 
     @State private var showBudgetEditor   = false
     @State private var showNewCategory    = false
@@ -38,6 +39,7 @@ struct SettingsView: View {
                 VStack(spacing: Spacing.l) {
                     profileCard
                     generalGroup
+                    appearanceGroup
                     notificationsGroup
                     manageGroup
                     dataGroup
@@ -161,6 +163,27 @@ struct SettingsView: View {
             }
             .padding(.vertical, 12)
             .contentShape(Rectangle())
+        }
+    }
+
+    // MARK: – Appearance group
+
+    private var appearanceGroup: some View {
+        settingsGroup("Appearance") {
+            HStack(spacing: 14) {
+                iconBox("circle.lefthalf.fill", color: Color.bobAccent)
+                Text("Appearance").font(.bobBody).foregroundStyle(Color.bobInk)
+                Spacer()
+                Picker("", selection: $appearanceMode) {
+                    Text("System").tag("system")
+                    Text("Light").tag("light")
+                    Text("Dark").tag("dark")
+                }
+                .pickerStyle(.segmented)
+                .tint(Color.bobAccent)
+                .frame(maxWidth: 180)
+            }
+            .padding(.vertical, 10)
         }
     }
 
@@ -408,7 +431,7 @@ struct SettingsView: View {
                 return
             }
             let content = UNMutableNotificationContent()
-            content.title = "Time to log your spending 📊"
+            content.title = "Time to log your spending"
             content.body = "Keep your finances up to date — it only takes a minute."
             content.sound = .default
             var comps = DateComponents(); comps.hour = 21; comps.minute = 0

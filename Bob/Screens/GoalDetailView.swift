@@ -143,9 +143,14 @@ struct GoalDetailView: View {
 
     private var heroSection: some View {
         VStack(spacing: 12) {
-            Text(goal.emoji)
-                .font(.system(size: 80))
-                .padding(.top, 8)
+            ZStack {
+                Circle()
+                    .fill(Color.bobAccent.opacity(0.08))
+                    .blur(radius: 30)
+                    .frame(width: 160, height: 160)
+                GoalIconView(iconName: goal.iconName, photoData: goal.photoData, size: 100, showBackground: false)
+            }
+            .padding(.top, 8)
 
             VStack(spacing: 4) {
                 Text(CurrencyFormatter.string(goal.totalSaved, code: currencyCode))
@@ -246,8 +251,15 @@ struct GoalDetailView: View {
             }
         }
         .padding(Spacing.m)
-        .background(Color.bobSurface)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .background {
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color.bobSurface.opacity(0.8))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
     // MARK: – 3-stat row
@@ -360,8 +372,15 @@ struct GoalDetailView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 16)
-        .background(Color.bobSurface)
-        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .background {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.bobSurface.opacity(0.8))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 
     // MARK: – Monthly target card
@@ -404,9 +423,15 @@ struct GoalDetailView: View {
                 }
             }
             .padding(Spacing.m)
-            .background(Color.bobSurface)
-            .clipShape(RoundedRectangle(cornerRadius: 14))
-            .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.bobHairline, lineWidth: 1))
+            .background {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(Color.bobSurface.opacity(0.8))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                    }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
     }
 
@@ -458,8 +483,15 @@ struct GoalDetailView: View {
             ContributionBarChart(data: monthlyData, currencyCode: currencyCode)
         }
         .padding(Spacing.m)
-        .background(Color.bobSurface)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .background {
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color.bobSurface.opacity(0.8))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
     }
 
     // MARK: – CTA
@@ -534,12 +566,15 @@ struct GoalDetailView: View {
                         }
                     }
                 }
-                .background(Color.bobSurface)
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                .overlay(
+                .background {
                     RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .stroke(Color.bobHairline, lineWidth: 1)
-                )
+                        .fill(Color.bobSurface.opacity(0.8))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                        }
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             }
         }
     }
@@ -666,25 +701,5 @@ private struct ScalePress: ButtonStyle {
 }
 
 #Preview {
-    let config = ModelConfiguration(isStoredInMemoryOnly: true)
-    let container = try! ModelContainer(for: Goal.self, GoalContribution.self, configurations: config)
-
-    let goal = Goal(
-        name: "Emergency Fund",
-        emoji: "🏠",
-        targetAmount: 5000,
-        deadline: Calendar.current.date(byAdding: .month, value: 6, to: Date())!
-    )
-    container.mainContext.insert(goal)
-
-    let c1 = GoalContribution(amount: 500, date: Calendar.current.date(byAdding: .month, value: -2, to: Date())!)
-    let c2 = GoalContribution(amount: 300, date: Calendar.current.date(byAdding: .month, value: -1, to: Date())!)
-    let c3 = GoalContribution(amount: 450, date: Date())
-    c1.goal = goal; c2.goal = goal; c3.goal = goal
-    container.mainContext.insert(c1)
-    container.mainContext.insert(c2)
-    container.mainContext.insert(c3)
-
-    return GoalDetailView(goal: goal, currencyCode: "USD")
-        .modelContainer(container)
+    GoalDetailView(goal: Goal(name: "Emergency Fund", iconName: "building.columns", targetAmount: 5000, deadline: Calendar.current.date(byAdding: .month, value: 6, to: Date())!), currencyCode: "USD")
 }

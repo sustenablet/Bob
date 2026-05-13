@@ -5,7 +5,8 @@ import SwiftData
 final class Goal {
     var id: UUID = UUID()
     var name: String = ""
-    var emoji: String = "🎯"
+    var iconName: String = "target"
+    var photoData: Data?
     var targetAmount: Decimal = Decimal(1000)
     var deadline: Date = Calendar.current.date(byAdding: .month, value: 6, to: Date()) ?? Date()
     var createdAt: Date = Date()
@@ -14,15 +15,19 @@ final class Goal {
     @Relationship(deleteRule: .cascade, inverse: \GoalContribution.goal)
     var contributions: [GoalContribution]? = []
 
+    var displayIcon: String { iconName }
+
     init(
         name: String,
-        emoji: String = "🎯",
+        iconName: String = "target",
+        photoData: Data? = nil,
         targetAmount: Decimal,
         deadline: Date
     ) {
         self.id = UUID()
         self.name = name
-        self.emoji = emoji
+        self.iconName = iconName
+        self.photoData = photoData
         self.targetAmount = targetAmount
         self.deadline = deadline
         self.createdAt = Date()

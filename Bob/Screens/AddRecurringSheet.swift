@@ -1,6 +1,10 @@
 import SwiftUI
 import SwiftData
-import UIKit
+
+// MARK: – Add Recurring Sheet
+// Structured "setup" design: name + amount together, frequency is the visual centerpiece.
+// Feels like configuring a subscription, not quick-adding a purchase.
+// Keypad floats over content as an overlay — nothing shifts.
 
 struct AddRecurringSheet: View {
     @Environment(\.modelContext) private var modelContext
@@ -17,175 +21,99 @@ struct AddRecurringSheet: View {
     @State private var frequency: RecurringFrequency = .monthly
     @State private var startDate: Date = Date()
     @State private var selectedCategory: ExpenseCategory?
-    @State private var showDatePicker = false
+    @State private var isKeypadVisible = true
+    @FocusState private var nameFieldFocused: Bool
 
     var isEditing: Bool { recurringToEdit != nil }
     var canSave: Bool { !name.trimmingCharacters(in: .whitespaces).isEmpty && amount > 0 }
 
-    private var accentColor: Color { kind == .income ? .bobAccent : .bobDebit }
+    private var accentColor: Color { kind == .income ? Color.bobGreen : Color.bobAccent }
     private var visibleCategories: [ExpenseCategory] { allCategories.filter { $0.kind == kindAsTransaction } }
     private var kindAsTransaction: TransactionKind { kind == .income ? .income : .expense }
+    private var frequencyDisplayString: String {
+        switch frequency {
+        case .weekly:   return "week"
+        case .biweekly: return "2 weeks"
+        case .monthly:  return "month"
+        case .yearly:   return "year"
+        }
+    }
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Header
-            dragHandle
+        ZStack(alignment: .bottom) {
+            Color.bobBackground.ignoresSafeArea()
 
-            // Scrollable content
-            ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: Spacing.l) {
-                    kindToggle
-                        .padding(.top, Spacing.m)
+            // Subtle tinted atmosphere at top — differentiates from AddTransaction sheet
+            LinearGradient(
+                colors: [accentColor.opacity(0.08), Color.clear],
+                startPoint: .top,
+                endPoint: UnitPoint(x: 0.5, y: 0.45)
+            )
+            .ignoresSafeArea()
+            .allowsHitTesting(false)
+            .animation(.easeOut(duration: 0.3), value: kind)
 
-                    // Amount display
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(kind == .income ? "Amount received" : "Amount paid").eyebrow()
-                        BigAmountView(
-                            amount: amount,
-                            currencyCode: currencyCode,
-                            size: 48,
-                            tint: amount > 0 ? accentColor : Color.bobInk2
-                        )
-                    }
-
-                    // Name
-                    VStack(alignment: .leading, spacing: Spacing.xs) {
-                        Text("Name").eyebrow()
-                        TextField("e.g. Rent, Netflix, Salary", text: $name)
-                            .font(.bobBody)
-                            .foregroundStyle(Color.bobInk)
-                            .padding(Spacing.m)
-                            .background(Color.bobSurface)
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
-                            .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.bobHairline, lineWidth: 1))
-                            .submitLabel(.done)
-                    }
-
-                    // Frequency
-                    VStack(alignment: .leading, spacing: Spacing.s) {
-                        Text("Repeats").eyebrow()
-                        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 2), spacing: 8) {
-                            ForEach([RecurringFrequency.weekly, .biweekly, .monthly, .yearly], id: \.self) { freq in
-                                Button { withAnimation { frequency = freq } } label: {
-                                    VStack(spacing: 2) {
-                                        Text(frequencyLabel(freq))
-                                            .font(.system(size: 14, weight: .semibold))
-                                        Text(frequencySub(freq))
-                                            .font(.system(size: 11))
-                                            .opacity(0.7)
-                                    }
-                                    .foregroundStyle(frequency == freq ? .white : Color.bobInk2)
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 14)
-                                    .background(frequency == freq ? accentColor : Color.bobSurface)
-                                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(
-                                        frequency == freq ? Color.clear : Color.bobHairline, lineWidth: 1))
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                    }
-
-                    // Category
-                    if !visibleCategories.isEmpty {
-                        VStack(alignment: .leading, spacing: Spacing.xs) {
-                            Text("Category").eyebrow()
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: Spacing.xs) {
-                                    ForEach(visibleCategories, id: \.id) { cat in
-                                        CategoryChip(
-                                            category: cat,
-                                            isSelected: selectedCategory?.id == cat.id
-                                        ) { selectedCategory = cat }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // Start date
-                    VStack(alignment: .leading, spacing: Spacing.xs) {
-                        Text("Start Date").eyebrow()
-                        Button {
-                            withAnimation { showDatePicker.toggle() }
-                        } label: {
-                            HStack {
-                                Text(formattedDate)
-                                    .font(.bobBody).foregroundStyle(Color.bobInk)
-                                Spacer()
-                                Image(systemName: "chevron.down")
-                                    .font(.system(size: 11, weight: .medium))
-                                    .foregroundStyle(Color.bobInk2)
-                                    .rotationEffect(.degrees(showDatePicker ? 180 : 0))
-                            }
-                            .padding(Spacing.m)
-                            .background(Color.bobSurface)
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
-                            .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.bobHairline, lineWidth: 1))
-                        }
-                        .buttonStyle(.plain)
-
-                        if showDatePicker {
-                            DatePicker("", selection: $startDate, displayedComponents: [.date])
-                                .datePickerStyle(.graphical)
-                                .tint(accentColor)
-                        }
-                    }
-
-                    Spacer(minLength: Spacing.s)
-                }
-                .padding(.horizontal, Spacing.pageMargin)
-            }
-
-            // Save button
             VStack(spacing: 0) {
-                HairlineDivider()
-                Button { save() } label: {
-                    Text(isEditing ? "Save Changes" : (kind == .income ? "Add Income" : "Add Expense"))
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(canSave ? .white : Color.bobInk3)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
-                        .background(canSave ? accentColor : Color.bobSurface)
-                        .clipShape(Capsule())
-                        .overlay(Capsule().stroke(canSave ? Color.clear : Color.bobHairline, lineWidth: 1))
+                topBar
+
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 18) {
+                        kindToggle
+                            .padding(.top, 6)
+
+                        summaryCard
+                        frequencySection
+                        categorySection
+                        dateSection
+                    }
+                    .padding(.horizontal, 20)
                 }
-                .disabled(!canSave)
-                .padding(.horizontal, Spacing.pageMargin)
-                .padding(.vertical, Spacing.s)
-                .animation(.easeOut(duration: 0.15), value: canSave)
-                .animation(.easeOut(duration: 0.15), value: kind)
+                .safeAreaInset(edge: .bottom) {
+                    Color.clear.frame(height: isKeypadVisible ? 300 : 20)
+                }
+
+                saveBar
             }
 
-            HairlineDivider()
-            CurrencyKeypad(amount: $amount).background(Color.bobBackground)
+            if isKeypadVisible {
+                keypadFloat
+                    .transition(.move(edge: .bottom))
+            }
         }
-        .background(Color.bobBackground.ignoresSafeArea())
+        .animation(.spring(response: 0.4, dampingFraction: 0.88), value: isKeypadVisible)
+        .animation(.easeOut(duration: 0.25), value: kind)
         .onAppear(perform: hydrate)
         .onChange(of: kind) { _, _ in
             if selectedCategory?.kind != kindAsTransaction { selectedCategory = visibleCategories.first }
         }
+        .onChange(of: nameFieldFocused) { _, focused in
+            if focused {
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.88)) {
+                    isKeypadVisible = false
+                }
+            }
+        }
     }
 
-    // MARK: – Drag handle + cancel
+    // MARK: – Top bar
 
-    private var dragHandle: some View {
-        VStack(spacing: 0) {
-            RoundedRectangle(cornerRadius: 2)
+    private var topBar: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 2.5)
                 .fill(Color.bobHairline)
                 .frame(width: 36, height: 4)
-                .padding(.top, 10)
+                .frame(maxWidth: .infinity)
+
+            HStack {
+                Spacer()
+                Button("Cancel") { dismiss() }
+                    .font(.system(size: 15))
+                    .foregroundStyle(Color.bobInk2)
+                    .padding(.trailing, 20)
+            }
         }
-        .frame(maxWidth: .infinity)
-        .overlay(alignment: .topTrailing) {
-            Button("Cancel") { dismiss() }
-                .font(.system(size: 15))
-                .foregroundStyle(Color.bobInk2)
-                .padding(.top, 8)
-                .padding(.trailing, Spacing.pageMargin)
-        }
-        .padding(.bottom, Spacing.xs)
+        .padding(.top, 10)
+        .padding(.bottom, 16)
     }
 
     // MARK: – Kind toggle
@@ -194,7 +122,7 @@ struct AddRecurringSheet: View {
         HStack(spacing: 0) {
             ForEach([RecurringKind.expense, .income], id: \.self) { option in
                 Button {
-                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    HapticManager.light()
                     withAnimation(.easeOut(duration: 0.2)) { kind = option }
                 } label: {
                     HStack(spacing: 6) {
@@ -204,27 +132,464 @@ struct AddRecurringSheet: View {
                             .font(.system(size: 14, weight: .semibold))
                     }
                     .foregroundStyle(kind == option ? .white : Color.bobInk2)
-                    .frame(maxWidth: .infinity).padding(.vertical, 10)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 10)
                     .background(Capsule().fill(
-                        kind == option ? (option == .income ? Color.bobAccent : Color.bobDebit) : Color.clear
+                        kind == option
+                            ? (option == .income ? Color.bobGreen : Color.bobAccent)
+                            : Color.clear
                     ))
                 }.buttonStyle(.plain)
             }
         }
         .padding(3)
         .background(Capsule().fill(Color.bobSurface))
-        .overlay(Capsule().stroke(Color.bobHairline, lineWidth: 1))
+        .overlay(Capsule().stroke(Color.white.opacity(0.08), lineWidth: 1))
+    }
+
+    // MARK: – Summary card (name + amount together)
+
+    private var summaryCard: some View {
+        VStack(spacing: 0) {
+            // Name field row
+            HStack(spacing: 12) {
+                Image(systemName: kind == .income ? "arrow.down.circle" : "arrow.up.circle")
+                    .font(.system(size: 18, weight: .medium))
+                    .foregroundStyle(accentColor)
+                    .frame(width: 28)
+                    .animation(.easeOut(duration: 0.2), value: kind)
+
+                TextField(
+                    kind == .income ? "e.g. Salary, Rent income" : "e.g. Netflix, Rent, Gym",
+                    text: $name
+                )
+                .font(.system(size: 16, weight: .medium))
+                .foregroundStyle(Color.bobInk)
+                .focused($nameFieldFocused)
+                .submitLabel(.done)
+                .onSubmit { nameFieldFocused = false }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 16)
+
+            Rectangle()
+                .fill(Color.white.opacity(0.06))
+                .frame(height: 1)
+
+            // Amount row — tap to open keypad
+            Button {
+                nameFieldFocused = false
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.88)) {
+                    isKeypadVisible = true
+                }
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "dollarsign.circle")
+                        .font(.system(size: 18, weight: .medium))
+                        .foregroundStyle(amount > 0 ? accentColor : Color.bobInk3)
+                        .frame(width: 28)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        if amount > 0 {
+                            Text("per \(frequencyDisplayString)")
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundStyle(isKeypadVisible ? accentColor.opacity(0.8) : Color.bobInk3)
+                                .textCase(.uppercase)
+                                .tracking(0.5)
+                                .transition(.opacity)
+                        }
+                        BigAmountView(
+                            amount: amount,
+                            currencyCode: currencyCode,
+                            size: 32,
+                            tint: amount > 0 ? accentColor : Color.bobInk3
+                        )
+                    }
+
+                    Spacer()
+
+                    if !isKeypadVisible {
+                        Image(systemName: "pencil.circle.fill")
+                            .font(.system(size: 22))
+                            .foregroundStyle(accentColor.opacity(0.7))
+                            .transition(.scale.combined(with: .opacity))
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 16)
+            }
+            .buttonStyle(.plain)
+            .animation(.easeOut(duration: 0.2), value: isKeypadVisible)
+            .animation(.easeOut(duration: 0.2), value: amount > 0)
+        }
+        .background {
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(Color.bobSurface.opacity(0.7))
+                .overlay {
+                    // Glass sheen at top
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: [Color.white.opacity(0.07), Color.clear],
+                                startPoint: .top,
+                                endPoint: UnitPoint(x: 0.5, y: 0.4)
+                            )
+                        )
+                }
+                .overlay {
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .stroke(
+                            LinearGradient(
+                                colors: [Color.white.opacity(0.14), Color.white.opacity(0.04)],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            ),
+                            lineWidth: 1
+                        )
+                }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+    }
+
+    // MARK: – Frequency section (visual centrepiece)
+
+    private var frequencySection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Repeats")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(Color.bobInk2)
+                    .textCase(.uppercase)
+                    .tracking(0.7)
+                Spacer()
+                // Live preview of selected frequency
+                Text(frequencyPreviewText)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(accentColor)
+            }
+            .padding(.horizontal, 2)
+
+            // 2×2 grid of frequency options
+            let cols = Array(repeating: GridItem(.flexible(), spacing: 10), count: 2)
+            LazyVGrid(columns: cols, spacing: 10) {
+                ForEach(
+                    [RecurringFrequency.weekly, .biweekly, .monthly, .yearly],
+                    id: \.self
+                ) { freq in
+                    frequencyTile(freq)
+                }
+            }
+        }
+    }
+
+    private var frequencyPreviewText: String {
+        guard amount > 0 else { return "" }
+        let amtStr = CurrencyFormatter.string(amount, code: currencyCode)
+        switch frequency {
+        case .weekly:   return "\(amtStr) / week"
+        case .biweekly: return "\(amtStr) / 2 weeks"
+        case .monthly:  return "\(amtStr) / month"
+        case .yearly:   return "\(amtStr) / year"
+        }
+    }
+
+    private func frequencyTile(_ freq: RecurringFrequency) -> some View {
+        let isSelected = frequency == freq
+        return Button {
+            HapticManager.light()
+            withAnimation(.easeOut(duration: 0.18)) { frequency = freq }
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: frequencyIcon(freq))
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundStyle(isSelected ? .white : Color.bobInk2)
+                    .frame(width: 20)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(frequencyLabel(freq))
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(isSelected ? .white : Color.bobInk)
+                    Text(frequencySub(freq))
+                        .font(.system(size: 11))
+                        .foregroundStyle(isSelected ? Color.white.opacity(0.7) : Color.bobInk3)
+                }
+
+                Spacer()
+
+                if isSelected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 14))
+                        .foregroundStyle(Color.white.opacity(0.9))
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(isSelected ? accentColor : Color.bobSurface.opacity(0.7))
+                    .overlay {
+                        if isSelected {
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .fill(
+                                    LinearGradient(
+                                        colors: [Color.white.opacity(0.1), Color.clear],
+                                        startPoint: .top,
+                                        endPoint: .bottom
+                                    )
+                                )
+                        }
+                    }
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .stroke(
+                                isSelected ? Color.white.opacity(0.15) : Color.white.opacity(0.07),
+                                lineWidth: 1
+                            )
+                    }
+            }
+        }
+        .buttonStyle(.plain)
+        .animation(.easeOut(duration: 0.18), value: isSelected)
+    }
+
+    private func frequencyIcon(_ freq: RecurringFrequency) -> String {
+        switch freq {
+        case .weekly:   return "7.circle"
+        case .biweekly: return "14.circle"
+        case .monthly:  return "calendar.circle"
+        case .yearly:   return "calendar.badge.clock"
+        }
+    }
+
+    // MARK: – Category section
+
+    private var categorySection: some View {
+        Group {
+            if !visibleCategories.isEmpty {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Category")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(Color.bobInk2)
+                        .textCase(.uppercase)
+                        .tracking(0.7)
+                        .padding(.horizontal, 2)
+
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(visibleCategories, id: \.id) { cat in
+                                categoryChip(cat)
+                            }
+                        }
+                        .padding(.horizontal, 20)
+                    }
+                    .padding(.horizontal, -20)
+                }
+            }
+        }
+    }
+
+    private func categoryChip(_ cat: ExpenseCategory) -> some View {
+        let isSelected = selectedCategory?.id == cat.id
+        return Button {
+            selectedCategory = cat
+            HapticManager.light()
+        } label: {
+            HStack(spacing: 7) {
+                ZStack {
+                    Circle()
+                        .fill(isSelected ? Color.white.opacity(0.2) : Color.white.opacity(0.06))
+                        .frame(width: 28, height: 28)
+                    Image(systemName: cat.sfSymbol)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(isSelected ? .white : Color.bobInk2)
+                }
+                Text(cat.name)
+                    .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
+                    .foregroundStyle(isSelected ? .white : Color.bobInk2)
+            }
+            .padding(.leading, 6)
+            .padding(.trailing, 14)
+            .padding(.vertical, 6)
+            .background {
+                Capsule()
+                    .fill(isSelected ? accentColor : Color.bobSurface.opacity(0.8))
+                    .overlay {
+                        Capsule()
+                            .stroke(
+                                isSelected ? Color.white.opacity(0.15) : Color.white.opacity(0.07),
+                                lineWidth: 1
+                            )
+                    }
+            }
+        }
+        .buttonStyle(.plain)
+        .animation(.easeOut(duration: 0.14), value: isSelected)
+    }
+
+    // MARK: – Date section
+
+    private var dateSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Start Date")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(Color.bobInk2)
+                .textCase(.uppercase)
+                .tracking(0.7)
+                .padding(.horizontal, 2)
+
+            HStack(spacing: 12) {
+                Image(systemName: "calendar")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundStyle(accentColor)
+                    .frame(width: 28)
+                Text("First payment on")
+                    .font(.system(size: 14))
+                    .foregroundStyle(Color.bobInk2)
+                Spacer()
+                DatePicker("", selection: $startDate, displayedComponents: [.date])
+                    .datePickerStyle(.compact)
+                    .labelsHidden()
+                    .tint(accentColor)
+                    .colorScheme(.dark)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .background {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(Color.bobSurface.opacity(0.7))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .stroke(Color.white.opacity(0.07), lineWidth: 1)
+                    }
+            }
+        }
+    }
+
+    // MARK: – Save bar
+
+    private var saveBar: some View {
+        VStack(spacing: 0) {
+            Rectangle()
+                .fill(Color.white.opacity(0.06))
+                .frame(height: 1)
+
+            Button { save() } label: {
+                HStack(spacing: 8) {
+                    if canSave && amount > 0 {
+                        Text(isEditing ? "Save Changes" : (kind == .income ? "Add Income" : "Add Expense"))
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(.white)
+                    } else {
+                        Text(isEditing ? "Save Changes" : (kind == .income ? "Add Income" : "Add Expense"))
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(Color.bobInk2)
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 16)
+                .background(canSave ? accentColor : Color.bobSurface)
+                .clipShape(Capsule())
+                .overlay(
+                    Capsule().stroke(
+                        canSave ? Color.clear : Color.white.opacity(0.08),
+                        lineWidth: 1
+                    )
+                )
+            }
+            .disabled(!canSave)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 14)
+            .animation(.easeOut(duration: 0.15), value: canSave)
+            .animation(.easeOut(duration: 0.15), value: kind)
+        }
+        .background(Color.bobBackground)
+    }
+
+    // MARK: – Keypad float overlay
+
+    private var keypadFloat: some View {
+        VStack(spacing: 0) {
+            HStack(alignment: .center) {
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 5) {
+                        Image(systemName: "repeat")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(accentColor)
+                        Text("Recurring \(kind == .income ? "income" : "expense")")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(Color.bobInk3)
+                            .textCase(.uppercase)
+                            .tracking(0.7)
+                    }
+                    BigAmountView(
+                        amount: amount,
+                        currencyCode: currencyCode,
+                        size: 26,
+                        tint: amount > 0 ? accentColor : Color.bobInk3
+                    )
+                }
+                Spacer()
+                Button {
+                    HapticManager.light()
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.88)) {
+                        isKeypadVisible = false
+                    }
+                } label: {
+                    Text("Done")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 22)
+                        .padding(.vertical, 9)
+                        .background(accentColor)
+                        .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 16)
+            .padding(.bottom, 13)
+            .background {
+                LinearGradient(
+                    colors: [accentColor.opacity(0.06), Color.clear],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            }
+
+            Rectangle()
+                .fill(Color.white.opacity(0.09))
+                .frame(height: 1)
+
+            CurrencyKeypad(amount: $amount)
+        }
+        .background {
+            ZStack {
+                Color(red: 0.09, green: 0.09, blue: 0.09)
+                LinearGradient(
+                    colors: [accentColor.opacity(0.05), Color.clear],
+                    startPoint: .top,
+                    endPoint: UnitPoint(x: 0.5, y: 0.3)
+                )
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .stroke(
+                    LinearGradient(
+                        colors: [accentColor.opacity(0.25), Color.white.opacity(0.05)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    ),
+                    lineWidth: 1
+                )
+        }
+        .shadow(color: .black.opacity(0.6), radius: 40, y: -6)
+        .ignoresSafeArea(edges: .bottom)
     }
 
     // MARK: – Helpers
-
-    private var formattedDate: String {
-        let cal = Calendar.current
-        if cal.isDateInToday(startDate) { return "Today" }
-        if cal.isDateInYesterday(startDate) { return "Yesterday" }
-        let f = DateFormatter(); f.dateStyle = .medium
-        return f.string(from: startDate)
-    }
 
     private func frequencyLabel(_ freq: RecurringFrequency) -> String {
         switch freq {
@@ -245,6 +610,7 @@ struct AddRecurringSheet: View {
     }
 
     private func hydrate() {
+        isKeypadVisible = recurringToEdit == nil
         guard let r = recurringToEdit else {
             selectedCategory = visibleCategories.first
             return
@@ -259,7 +625,7 @@ struct AddRecurringSheet: View {
 
     private func save() {
         guard canSave else { return }
-        UINotificationFeedbackGenerator().notificationOccurred(.success)
+        HapticManager.success()
         let trimName = name.trimmingCharacters(in: .whitespaces)
 
         if let existing = recurringToEdit {
@@ -272,8 +638,12 @@ struct AddRecurringSheet: View {
             existing.category = selectedCategory
         } else {
             modelContext.insert(RecurringTransaction(
-                name: trimName, amount: amount, kind: kind,
-                frequency: frequency, startDate: startDate, category: selectedCategory
+                name: trimName,
+                amount: amount,
+                kind: kind,
+                frequency: frequency,
+                startDate: startDate,
+                category: selectedCategory
             ))
         }
         try? modelContext.save()

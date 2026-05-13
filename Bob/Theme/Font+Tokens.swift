@@ -10,13 +10,18 @@ extension Font {
     static let bobTitle        = Font.system(size: 22, weight: .bold)
 
     // Body
-    static let bobBody         = Font.system(size: 16, weight: .regular)
-    static let bobBodyMed      = Font.system(size: 16, weight: .medium)
-    static let bobCallout      = Font.system(size: 15, weight: .regular)
+    static let bobBody         = Font.system(size: 17, weight: .regular)
+    static let bobBodyMed      = Font.system(size: 17, weight: .medium)
+    static let bobCallout      = Font.system(size: 16, weight: .regular)
     static let bobCaption      = Font.system(size: 13, weight: .regular)
 
     // Section eyebrows
     static let bobLabel        = Font.system(size: 11, weight: .semibold)
+
+    // Serif display for large amounts
+    static func bobSerif(_ size: CGFloat = 68) -> Font {
+        .system(size: size, weight: .regular, design: .serif)
+    }
 
     // Mono for amounts
     static func bobMono(_ size: CGFloat = 15, weight: Font.Weight = .regular) -> Font {

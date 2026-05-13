@@ -5,6 +5,7 @@ import SwiftData
 struct BobApp: App {
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     @AppStorage("showOnboarding") private var showOnboarding = true
+    @AppStorage("appearanceMode") private var appearanceMode = "system"
     
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
@@ -32,6 +33,7 @@ struct BobApp: App {
         WindowGroup {
             if hasCompletedOnboarding || !showOnboarding {
                 ContentView()
+                    .preferredColorScheme(appearanceMode == "light" ? .light : appearanceMode == "dark" ? .dark : nil)
                     .onAppear {
                         RecurringProcessor.shared.processDueRecurrings(
                             context: sharedModelContainer.mainContext

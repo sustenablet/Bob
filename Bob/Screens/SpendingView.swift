@@ -101,6 +101,39 @@ struct SpendingView: View {
         return income(in: seg).reduce(0) { $0 + $1.amount }
     }
 
+    private var netCashFlow: Decimal { currentIncome - currentExpenses }
+
+    private var avgDailySpend: Decimal {
+        guard let seg = currentSegment else { return 0 }
+        let cal = Calendar.current
+        let days = max(cal.dateComponents([.day], from: seg.start, to: seg.end).day ?? 1, 1)
+        guard currentExpenses > 0 else { return 0 }
+        return currentExpenses / Decimal(days)
+    }
+
+    private var periodTransactions: [Expense] {
+        guard let seg = currentSegment else { return [] }
+        return allExpenses.filter { $0.date >= seg.start && $0.date <= seg.end }
+            .sorted { $0.date > $1.date }
+    }
+
+    private var biggestSingleExpense: Expense? {
+        guard let seg = currentSegment else { return nil }
+        return expenses(in: seg).sorted { $0.amount > $1.amount }.first
+    }
+
+    private var dailyBreakdown: [(label: String, amount: Decimal)] {
+        guard let seg = currentSegment else { return [] }
+        let cal = Calendar.current
+        var dict: [Date: Decimal] = [:]
+        for tx in expenses(in: seg) {
+            dict[cal.startOfDay(for: tx.date), default: 0] += tx.amount
+        }
+        let df = DateFormatter(); df.dateFormat = "d"
+        return dict.sorted { $0.key < $1.key }
+                   .map { (df.string(from: $0.key), $0.value) }
+    }
+
     private var maxBarValue: Decimal {
         segments.map { seg in
             max(expenses(in: seg).reduce(0) { $0 + $1.amount },
@@ -143,11 +176,16 @@ struct SpendingView: View {
                         .padding(.top, Spacing.xs)
                         .padding(.horizontal, Spacing.pageMargin)
 
-                    summaryCard
-                        .padding(.horizontal, Spacing.pageMargin)
+                    netCashFlowCard
+                        .padding(.top, Spacing.m)
+
+                    dailySpendChart
                         .padding(.top, Spacing.m)
 
                     breakdownSection
+                        .padding(.top, Spacing.l)
+
+                    periodTransactionList
                         .padding(.top, Spacing.l)
 
                     Spacer().frame(height: 100)
@@ -268,6 +306,205 @@ struct SpendingView: View {
             }
             Spacer()
         }
+    }
+
+    // MARK: – Net cash flow card
+    private var netCashFlowCard: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 0) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Income").font(.system(size: 11, weight: .semibold)).foregroundStyle(Color.bobInk2).textCase(.uppercase).tracking(0.6)
+                    Text(CurrencyFormatter.string(currentIncome, code: currencyCode))
+                        .font(.system(size: 20, weight: .bold)).foregroundStyle(Color.bobGreen).monospacedDigit()
+                        .contentTransition(.numericText())
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                Rectangle().fill(Color.white.opacity(0.07)).frame(width: 1, height: 44)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Expenses").font(.system(size: 11, weight: .semibold)).foregroundStyle(Color.bobInk2).textCase(.uppercase).tracking(0.6)
+                    Text(CurrencyFormatter.string(currentExpenses, code: currencyCode))
+                        .font(.system(size: 20, weight: .bold)).foregroundStyle(Color.bobDebit).monospacedDigit()
+                        .contentTransition(.numericText())
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.leading, Spacing.m)
+
+                Rectangle().fill(Color.white.opacity(0.07)).frame(width: 1, height: 44)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Net").font(.system(size: 11, weight: .semibold)).foregroundStyle(Color.bobInk2).textCase(.uppercase).tracking(0.6)
+                    Text((netCashFlow >= 0 ? "+" : "") + CurrencyFormatter.string(netCashFlow, code: currencyCode))
+                        .font(.system(size: 20, weight: .bold))
+                        .foregroundStyle(netCashFlow >= 0 ? Color.bobGreen : Color.bobDebit)
+                        .monospacedDigit()
+                        .contentTransition(.numericText())
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.leading, Spacing.m)
+            }
+            .padding(.horizontal, Spacing.m)
+            .padding(.vertical, 16)
+
+            if avgDailySpend > 0 {
+                Rectangle().fill(Color.white.opacity(0.06)).frame(height: 1)
+                HStack(spacing: 20) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "calendar.day.timeline.left").font(.system(size: 12)).foregroundStyle(Color.bobInk2)
+                        Text("Daily avg: \(CurrencyFormatter.string(avgDailySpend, code: currencyCode))")
+                            .font(.system(size: 12, weight: .medium)).foregroundStyle(Color.bobInk2)
+                    }
+                    if let biggest = biggestSingleExpense {
+                        HStack(spacing: 6) {
+                            Image(systemName: "arrow.up.circle.fill").font(.system(size: 12)).foregroundStyle(Color.bobDebit)
+                            Text("Biggest: \(CurrencyFormatter.string(biggest.amount, code: currencyCode))")
+                                .font(.system(size: 12, weight: .medium)).foregroundStyle(Color.bobInk2)
+                                .lineLimit(1)
+                        }
+                    }
+                    Spacer()
+                }
+                .padding(.horizontal, Spacing.m)
+                .padding(.vertical, 10)
+            }
+        }
+        .background {
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(Color.bobSurface.opacity(0.8))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .stroke(Color.white.opacity(0.07), lineWidth: 1)
+                }
+        }
+        .padding(.horizontal, Spacing.pageMargin)
+    }
+
+    // MARK: – Daily spend bar chart
+    private var dailySpendChart: some View {
+        let data = dailyBreakdown
+        guard !data.isEmpty else { return AnyView(EmptyView()) }
+        let peak = data.map { ($0.amount as NSDecimalNumber).doubleValue }.max() ?? 1
+
+        return AnyView(
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Text("DAILY BREAKDOWN")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Color.bobInk2)
+                        .tracking(0.8)
+                    Spacer()
+                    Text("\(data.count) days active")
+                        .font(.system(size: 11))
+                        .foregroundStyle(Color.bobInk3)
+                }
+
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(alignment: .bottom, spacing: 5) {
+                        ForEach(Array(data.enumerated()), id: \.offset) { idx, item in
+                            VStack(spacing: 4) {
+                                let h = max(CGFloat((item.amount as NSDecimalNumber).doubleValue / peak) * 60, 4)
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(
+                                        LinearGradient(
+                                            colors: [Color.bobDebit.opacity(0.5), Color.bobDebit.opacity(0.85)],
+                                            startPoint: .bottom, endPoint: .top
+                                        )
+                                    )
+                                    .frame(width: 14, height: h)
+                                Text(item.label)
+                                    .font(.system(size: 9, weight: .medium))
+                                    .foregroundStyle(Color.bobInk3)
+                            }
+                        }
+                    }
+                    .padding(.horizontal, Spacing.pageMargin)
+                    .padding(.bottom, 4)
+                }
+                .padding(.horizontal, -Spacing.pageMargin)
+            }
+            .padding(Spacing.m)
+            .background {
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(Color.bobSurface.opacity(0.8))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .stroke(Color.white.opacity(0.07), lineWidth: 1)
+                    }
+            }
+            .padding(.horizontal, Spacing.pageMargin)
+        )
+    }
+
+    // MARK: – Period transaction list
+    private var periodTransactionList: some View {
+        let txns = periodTransactions.prefix(8)
+        guard !txns.isEmpty else { return AnyView(EmptyView()) }
+
+        return AnyView(
+            VStack(alignment: .leading, spacing: 12) {
+                Text("TRANSACTIONS")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Color.bobInk2)
+                    .tracking(0.8)
+                    .padding(.horizontal, Spacing.pageMargin)
+
+                VStack(spacing: 0) {
+                    ForEach(Array(txns.enumerated()), id: \.element.id) { idx, tx in
+                        spendTxRow(tx)
+                        if idx < txns.count - 1 {
+                            Rectangle().fill(Color.white.opacity(0.05)).frame(height: 1).padding(.leading, 58)
+                        }
+                    }
+                }
+                .background {
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .fill(Color.bobSurface.opacity(0.8))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                .stroke(Color.white.opacity(0.07), lineWidth: 1)
+                        }
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .padding(.horizontal, Spacing.pageMargin)
+            }
+        )
+    }
+
+    private func spendTxRow(_ tx: Expense) -> some View {
+        let isIncome = tx.kind == .income
+        let amtStr = CurrencyFormatter.string(tx.amount, code: currencyCode)
+        let df = DateFormatter(); df.dateFormat = "MMM d"
+
+        return HStack(spacing: 12) {
+            ZStack {
+                Circle()
+                    .fill(isIncome ? Color.bobGreen.opacity(0.18) : Color.bobDebit.opacity(0.15))
+                    .frame(width: 40, height: 40)
+                Image(systemName: tx.category?.sfSymbol ?? "circle.dashed")
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(isIncome ? Color.bobGreen : Color.bobDebit)
+            }
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(tx.merchant?.isEmpty == false ? tx.merchant! : (tx.category?.name ?? (isIncome ? "Income" : "Expense")))
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Color.bobInk)
+                    .lineLimit(1)
+                Text(df.string(from: tx.date))
+                    .font(.system(size: 12))
+                    .foregroundStyle(Color.bobInk2)
+            }
+
+            Spacer()
+
+            Text((isIncome ? "+" : "") + amtStr)
+                .font(.system(size: 14, weight: .semibold))
+                .monospacedDigit()
+                .foregroundStyle(isIncome ? Color.bobGreen : Color.bobInk)
+        }
+        .padding(.horizontal, Spacing.m)
+        .padding(.vertical, 12)
     }
 
     // MARK: – Summary card

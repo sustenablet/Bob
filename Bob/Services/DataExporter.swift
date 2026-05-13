@@ -29,7 +29,7 @@ enum DataExporter {
         
         for goal in goals {
             let name = goal.name.replacingOccurrences(of: ",", with: ";")
-            let emoji = goal.emoji
+            let emoji = goal.iconName
             let target = "\(goal.targetAmount)"
             let saved = "\(goal.totalSaved)"
             let progress = "\(Int(goal.progress * 100))"

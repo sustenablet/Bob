@@ -73,6 +73,38 @@ struct AnalyticsView: View {
         return totalAmount / Decimal(dailySpending.count)
     }
 
+    private var spendingStreak: Int {
+        guard avgDailySpend > 0 else { return 0 }
+        let cal = Calendar.current
+        let sorted = dailySpending.sorted { $0.date > $1.date }
+        var streak = 0
+        for day in sorted {
+            if day.amount <= avgDailySpend { streak += 1 } else { break }
+        }
+        return streak
+    }
+
+    private var incomeSourceBreakdown: [(name: String, amount: Decimal, pct: Double)] {
+        guard reportKind == .income, totalAmount > 0 else { return [] }
+        return categoryData.map { cat in
+            let pct = Double((cat.amount / totalAmount) as NSDecimalNumber) * 100
+            return (name: cat.category, amount: cat.amount, pct: pct)
+        }
+    }
+
+    private var monthOverMonthTrend: [(month: String, amount: Decimal)] {
+        let df = DateFormatter(); df.dateFormat = "MMM"
+        let cal = Calendar.current
+        return (0..<6).reversed().compactMap { offset -> (String, Decimal)? in
+            guard let date = cal.date(byAdding: .month, value: -offset, to: Date()),
+                  let start = cal.date(from: cal.dateComponents([.year, .month], from: date)),
+                  let end   = cal.date(byAdding: .month, value: 1, to: start) else { return nil }
+            let total = allExpenses.filter { $0.kind == reportKind && $0.date >= start && $0.date < end }
+                                   .reduce(Decimal(0)) { $0 + $1.amount }
+            return (df.string(from: date), total)
+        }
+    }
+
     // MARK: – Body
 
     var body: some View {
@@ -117,6 +149,7 @@ struct AnalyticsView: View {
                             if dailySpending.count >= 2 {
                                 trendSection.padding(.horizontal, Spacing.pageMargin)
                             }
+                            streakAndTrendSection.padding(.horizontal, Spacing.pageMargin)
                         }
 
                         trendsSection.padding(.horizontal, Spacing.pageMargin)
@@ -141,6 +174,67 @@ struct AnalyticsView: View {
         }
         .onChange(of: reportKind)     { _, _ in withAnimation { selectedCategoryIndex = nil } }
         .onChange(of: selectedPeriod) { _, _ in withAnimation { selectedCategoryIndex = nil } }
+    }
+
+    // MARK: – Spending streak + 6-month trend card
+    private var streakAndTrendSection: some View {
+        VStack(spacing: Spacing.m) {
+            // Streak row
+            if spendingStreak > 0 {
+                HStack(spacing: 14) {
+                    ZStack {
+                        Circle().fill(Color.bobGreen.opacity(0.18)).frame(width: 44, height: 44)
+                        Image(systemName: "flame.fill").font(.system(size: 20)).foregroundStyle(Color.bobGreen)
+                    }
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("\(spendingStreak)-day streak")
+                            .font(.system(size: 15, weight: .semibold)).foregroundStyle(Color.bobInk)
+                        Text("Consecutive days at or under daily average")
+                            .font(.system(size: 12)).foregroundStyle(Color.bobInk2)
+                    }
+                    Spacer()
+                }
+                .padding(Spacing.m)
+                .background(Color.bobGreen.opacity(0.07))
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+            }
+
+            // 6-month trend mini bars
+            VStack(alignment: .leading, spacing: 10) {
+                Text("6-Month Trend")
+                    .font(.system(size: 15, weight: .semibold)).foregroundStyle(Color.bobInk)
+
+                let trend = monthOverMonthTrend
+                let peak = trend.map { ($0.amount as NSDecimalNumber).doubleValue }.max() ?? 1
+
+                HStack(alignment: .bottom, spacing: 6) {
+                    ForEach(Array(trend.enumerated()), id: \.offset) { idx, item in
+                        VStack(spacing: 4) {
+                            let h = max(CGFloat((item.amount as NSDecimalNumber).doubleValue / peak) * 64, 4)
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(
+                                    LinearGradient(
+                                        colors: idx == trend.count - 1
+                                            ? [reportKind == .expense ? Color.bobDebit : Color.bobGreen,
+                                               (reportKind == .expense ? Color.bobDebit : Color.bobGreen).opacity(0.6)]
+                                            : [Color.bobSurface2, Color.bobSurface2],
+                                        startPoint: .top, endPoint: .bottom
+                                    )
+                                )
+                                .frame(width: 26, height: h)
+                            Text(item.month)
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundStyle(idx == trend.count - 1 ? Color.bobInk : Color.bobInk3)
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                }
+                .frame(height: 80)
+            }
+        }
+        .padding(Spacing.m)
+        .background(Color.bobSurface)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
     }
 
     // MARK: – Page header (consistent across tabs)

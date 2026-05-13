@@ -10,7 +10,7 @@ enum Spacing {
     static let xxl: CGFloat = 48
     static let xxxl: CGFloat = 64
 
-    static let pageMargin: CGFloat = 20
+    static let pageMargin: CGFloat = 16
 }
 
 enum Radius {

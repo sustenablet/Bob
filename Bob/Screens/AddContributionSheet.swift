@@ -156,7 +156,7 @@ struct AddContributionSheet: View {
 
     private var goalContextCard: some View {
         HStack(spacing: 12) {
-            Text(goal.emoji).font(.system(size: 24))
+            GoalIconView(iconName: goal.iconName, photoData: goal.photoData, size: 32, showBackground: false)
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(goal.name)
