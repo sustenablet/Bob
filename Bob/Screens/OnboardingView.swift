@@ -162,7 +162,7 @@ struct OnboardingView: View {
 
     private var petNamingPage: some View {
         VStack(spacing: 40) {
-            PetCharacter(state: .neutral, size: 110)
+            MascotCharacterView(state: .neutral, size: 110)
 
             VStack(spacing: 16) {
                 Text("Meet your\ncompanion")

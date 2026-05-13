@@ -45,6 +45,9 @@ struct ContentView: View {
         .onChange(of: pendingAchievements) { _, new in
             if visibleAchievement == nil, !new.isEmpty { showNextAchievement() }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .bobAchievementsUnlocked)) { notification in
+            enqueueAchievements(GamificationNotifier.achievementIDs(from: notification))
+        }
     }
 
     func enqueueAchievements(_ ids: [String]) {
@@ -63,10 +66,7 @@ struct ContentView: View {
     private func tabView(for tab: BobTab) -> some View {
         switch tab {
         case .home:
-            HomeView(
-                onSwitchTab: { switchTab(to: $0) },
-                onAchievementsUnlocked: { enqueueAchievements($0) }
-            )
+            HomeView(onSwitchTab: { switchTab(to: $0) })
         case .recurring:
             RecurringTransactionsView()
         case .spending:

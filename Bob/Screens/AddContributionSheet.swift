@@ -6,6 +6,13 @@ struct AddContributionSheet: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
 
+    @Query(sort: [SortDescriptor(\Expense.date, order: .reverse),
+                  SortDescriptor(\Expense.createdAt, order: .reverse)])
+    private var allExpenses: [Expense]
+    @Query(sort: \Goal.createdAt, order: .reverse) private var goals: [Goal]
+    @Query(sort: \BudgetSettings.monthlyBudget) private var settingsList: [BudgetSettings]
+    @Query private var statsList: [UserStats]
+
     let goal: Goal
     let currencyCode: String
 
@@ -213,6 +220,18 @@ struct AddContributionSheet: View {
         modelContext.insert(contribution)
         goal.contributions = (goal.contributions ?? []) + [contribution]
         try? modelContext.save()
+
+        if let stats = statsList.first {
+            let unlocked = GamificationService.shared.checkAchievements(
+                stats: stats,
+                allExpenses: allExpenses,
+                goals: goals,
+                budget: settingsList.first
+            )
+            try? modelContext.save()
+            GamificationNotifier.postAchievementsUnlocked(unlocked)
+        }
+
         dismiss()
     }
 }

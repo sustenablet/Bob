@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		E9A0A0012FAD5DDE0088BDB6 /* RiveRuntime in Frameworks */ = {isa = PBXBuildFile; productRef = E9A0A0032FAD5DDE0088BDB6 /* RiveRuntime */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		E9580AB22FAD5DDE0088BDB6 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -65,6 +69,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E9A0A0012FAD5DDE0088BDB6 /* RiveRuntime in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -125,6 +130,7 @@
 			);
 			name = Bob;
 			packageProductDependencies = (
+				E9A0A0032FAD5DDE0088BDB6 /* RiveRuntime */,
 			);
 			productName = Bob;
 			productReference = E9580AA02FAD5DDC0088BDB6 /* Bob.app */;
@@ -208,6 +214,9 @@
 			);
 			mainGroup = E9580A972FAD5DDC0088BDB6;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				E9A0A0022FAD5DDE0088BDB6 /* XCRemoteSwiftPackageReference "rive-ios" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = E9580AA12FAD5DDC0088BDB6 /* Products */;
 			projectDirPath = "";
@@ -595,6 +604,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		E9A0A0022FAD5DDE0088BDB6 /* XCRemoteSwiftPackageReference "rive-ios" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/rive-app/rive-ios";
+			requirement = {
+				kind = exactVersion;
+				version = 6.20.1;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		E9A0A0032FAD5DDE0088BDB6 /* RiveRuntime */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E9A0A0022FAD5DDE0088BDB6 /* XCRemoteSwiftPackageReference "rive-ios" */;
+			productName = RiveRuntime;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = E9580A982FAD5DDC0088BDB6 /* Project object */;
 }

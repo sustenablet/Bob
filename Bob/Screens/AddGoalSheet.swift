@@ -6,6 +6,13 @@ struct AddGoalSheet: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
 
+    @Query(sort: [SortDescriptor(\Expense.date, order: .reverse),
+                  SortDescriptor(\Expense.createdAt, order: .reverse)])
+    private var allExpenses: [Expense]
+    @Query(sort: \Goal.createdAt, order: .reverse) private var goals: [Goal]
+    @Query(sort: \BudgetSettings.monthlyBudget) private var settingsList: [BudgetSettings]
+    @Query private var statsList: [UserStats]
+
     let currencyCode: String
     var goalToEdit: Goal?
 
@@ -471,16 +478,33 @@ struct AddGoalSheet: View {
         guard canSave else { return }
         HapticManager.success()
         let trimName = name.trimmingCharacters(in: .whitespaces)
+        let isNewGoal = goalToEdit == nil
+        var savedGoal: Goal?
         if let existing = goalToEdit {
             existing.name = trimName
             existing.iconName = iconName
             existing.photoData = photoData
             existing.targetAmount = targetAmount
             existing.deadline = deadline
+            savedGoal = existing
         } else {
-            modelContext.insert(Goal(name: trimName, iconName: iconName, photoData: photoData, targetAmount: targetAmount, deadline: deadline))
+            let goal = Goal(name: trimName, iconName: iconName, photoData: photoData, targetAmount: targetAmount, deadline: deadline)
+            modelContext.insert(goal)
+            savedGoal = goal
         }
         try? modelContext.save()
+
+        if isNewGoal, let stats = statsList.first, let savedGoal {
+            let unlocked = GamificationService.shared.checkAchievements(
+                stats: stats,
+                allExpenses: allExpenses,
+                goals: goals + [savedGoal],
+                budget: settingsList.first
+            )
+            try? modelContext.save()
+            GamificationNotifier.postAchievementsUnlocked(unlocked)
+        }
+
         dismiss()
     }
 }

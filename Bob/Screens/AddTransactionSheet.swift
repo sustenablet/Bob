@@ -18,8 +18,6 @@ struct AddTransactionSheet: View {
 
     let currencyCode: String
     let expenseToEdit: Expense?
-    var onAchievementsUnlocked: (([String]) -> Void)? = nil
-
     @State private var kind: TransactionKind = .expense
     @State private var amount: Decimal = .zero
     @State private var selectedCategory: ExpenseCategory?
@@ -612,7 +610,7 @@ struct AddTransactionSheet: View {
                 budget: settingsList.first
             )
             try? modelContext.save()
-            if !unlocked.isEmpty { onAchievementsUnlocked?(unlocked) }
+            GamificationNotifier.postAchievementsUnlocked(unlocked)
         }
 
         dismiss()

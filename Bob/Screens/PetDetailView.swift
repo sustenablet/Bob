@@ -16,7 +16,7 @@ struct PetDetailView: View {
                     VStack(spacing: Spacing.xl) {
                         // Creature display
                         VStack(spacing: Spacing.m) {
-                            PetCharacter(
+                            MascotCharacterView(
                                 state: score.state,
                                 size: 110,
                                 unlockedAchievements: unlockedAchievements
@@ -34,6 +34,10 @@ struct PetDetailView: View {
                             }
                         }
                         .padding(.top, Spacing.l)
+
+                        if let nextMilestoneText {
+                            insightCard(nextMilestoneText)
+                        }
 
                         // Score breakdown
                         VStack(alignment: .leading, spacing: Spacing.s) {
@@ -134,6 +138,23 @@ struct PetDetailView: View {
         }
     }
 
+    private func insightCard(_ text: String) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: "sparkles")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(Color.bobAccent)
+            Text(text)
+                .font(.system(size: 13))
+                .foregroundStyle(Color.bobInk2)
+            Spacer()
+        }
+        .padding(Spacing.m)
+        .background(Color.bobSurface)
+        .clipShape(RoundedRectangle(cornerRadius: Radius.card))
+        .overlay(RoundedRectangle(cornerRadius: Radius.card).stroke(Color.bobHairline, lineWidth: 1))
+        .padding(.horizontal, Spacing.pageMargin)
+    }
+
     // MARK: – Score row
 
     private func scoreRow(label: String, detail: String, points: Int, maxPoints: Int, icon: String, color: Color) -> some View {
@@ -217,5 +238,27 @@ struct PetDetailView: View {
         case 20..<40:  return Color.bobHex(0xFF8A65)
         default:       return Color.bobDebit
         }
+    }
+
+    private var nextMilestoneText: String? {
+        if !unlockedAchievements.contains("streak_7") && streakDays > 0 {
+            let remaining = max(7 - streakDays, 0)
+            if remaining > 0 {
+                return "\(remaining) more day\(remaining == 1 ? "" : "s") to unlock Week Warrior."
+            }
+        }
+
+        if !unlockedAchievements.contains("streak_30") && streakDays >= 7 {
+            let remaining = max(30 - streakDays, 0)
+            if remaining > 0 {
+                return "\(remaining) more day\(remaining == 1 ? "" : "s") to unlock Month Master."
+            }
+        }
+
+        if unlockedAchievements.count < AchievementDefinition.all.count {
+            return "Keep building your streak, goals, and budget discipline to unlock more rewards."
+        }
+
+        return "Every badge is unlocked. Your companion is fully decked out."
     }
 }

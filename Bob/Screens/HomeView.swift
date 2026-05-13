@@ -4,7 +4,6 @@ import UIKit
 
 struct HomeView: View {
     var onSwitchTab: ((BobTab) -> Void)? = nil
-    var onAchievementsUnlocked: (([String]) -> Void)? = nil
 
     @Environment(\.modelContext) private var modelContext
 
@@ -177,16 +176,7 @@ struct HomeView: View {
         }
         .navigationBarHidden(true)
         .sheet(isPresented: $isAddingTransaction) {
-            AddTransactionSheet(currencyCode: currencyCode, expenseToEdit: nil, onAchievementsUnlocked: { ids in
-                onAchievementsUnlocked?(ids)
-                if !ids.isEmpty {
-                    celebratingPet = true
-                    Task {
-                        try? await Task.sleep(for: .seconds(4))
-                        await MainActor.run { celebratingPet = false }
-                    }
-                }
-            })
+            AddTransactionSheet(currencyCode: currencyCode, expenseToEdit: nil)
         }
         .sheet(item: $editingExpense) { expense in
             AddTransactionSheet(currencyCode: currencyCode, expenseToEdit: expense)
@@ -202,6 +192,15 @@ struct HomeView: View {
         .sheet(isPresented: $showAllTransactions) {
             NavigationStack {
                 TransactionsListView()
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .bobAchievementsUnlocked)) { notification in
+            let ids = GamificationNotifier.achievementIDs(from: notification)
+            guard !ids.isEmpty else { return }
+            celebratingPet = true
+            Task {
+                try? await Task.sleep(for: .seconds(4))
+                await MainActor.run { celebratingPet = false }
             }
         }
     }
@@ -241,9 +240,41 @@ struct HomeView: View {
             score: petScore,
             petName: petName,
             unlockedAchievements: stats?.earnedAchievementIDs ?? [],
+            statusLine: companionStatusLine,
             stateOverride: celebratingPet ? .celebrating : nil,
             onTap: { showingPetDetail = true }
         )
+    }
+
+    private var companionStatusLine: String {
+        if celebratingPet {
+            return "New achievement unlocked."
+        }
+
+        if let stats, !stats.earnedAchievementIDs.contains("streak_7"), stats.currentStreak > 0 {
+            let remaining = max(7 - stats.currentStreak, 0)
+            if remaining > 0 {
+                return "\(remaining) more day\(remaining == 1 ? "" : "s") to unlock Week Warrior."
+            }
+        }
+
+        if monthlyBudget > 0 {
+            let remaining = monthlyBudget - monthExpensesTotal
+            if remaining < 0 {
+                return "You are over budget this month."
+            }
+            if remaining <= monthlyBudget * Decimal(string: "0.2")! {
+                return "Only \(CurrencyFormatter.string(remaining, code: currencyCode)) left in this month's budget."
+            }
+        }
+
+        let activeGoals = goals.filter { $0.isActive && !$0.isCompleted }
+        if let nearestGoal = activeGoals.sorted(by: { $0.daysLeft < $1.daysLeft }).first {
+            let remaining = max(nearestGoal.targetAmount - nearestGoal.totalSaved, 0)
+            return "\(CurrencyFormatter.string(remaining, code: currencyCode)) left for \(nearestGoal.name)."
+        }
+
+        return "Keep logging to grow your companion."
     }
 
     // MARK: – Quick stats strip (3 tiles)

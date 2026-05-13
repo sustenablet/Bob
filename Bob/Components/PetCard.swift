@@ -4,6 +4,7 @@ struct PetCard: View {
     let score: PetHealthScore
     let petName: String
     let unlockedAchievements: [String]
+    var statusLine: String? = nil
     var stateOverride: PetState? = nil
     var onTap: (() -> Void)? = nil
 
@@ -12,7 +13,7 @@ struct PetCard: View {
     var body: some View {
         Button { onTap?() } label: {
             HStack(spacing: Spacing.m) {
-                PetCharacter(state: displayState, size: 72, unlockedAchievements: unlockedAchievements)
+                MascotCharacterView(state: displayState, size: 72, unlockedAchievements: unlockedAchievements)
 
                 VStack(alignment: .leading, spacing: 6) {
                     HStack(spacing: 6) {
@@ -32,6 +33,13 @@ struct PetCard: View {
                     Text(moodLabel)
                         .font(.system(size: 13))
                         .foregroundStyle(Color.bobInk2)
+
+                    if let statusLine, !statusLine.isEmpty {
+                        Text(statusLine)
+                            .font(.system(size: 11))
+                            .foregroundStyle(Color.bobInk3)
+                            .lineLimit(2)
+                    }
 
                     GeometryReader { geo in
                         ZStack(alignment: .leading) {

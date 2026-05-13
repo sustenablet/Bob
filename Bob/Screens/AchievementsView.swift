@@ -16,6 +16,9 @@ struct AchievementsView: View {
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: Spacing.l) {
                         streakSummary
+                        if nextUnlockHint != nil {
+                            nextUnlockCard
+                        }
                         achievementGrid
                     }
                     .padding(.horizontal, Spacing.pageMargin)
@@ -83,6 +86,47 @@ struct AchievementsView: View {
                 }
             }
         }
+    }
+
+    private var nextUnlockHint: String? {
+        let stats = stats
+        let unlocked = Set(stats?.earnedAchievementIDs ?? [])
+        let totalLogged = stats?.totalLogged ?? 0
+        let currentStreak = stats?.currentStreak ?? 0
+
+        if !unlocked.contains("first_tx") {
+            return "Log your first transaction to earn First Step."
+        }
+        if !unlocked.contains("tx_10") {
+            return "\(max(10 - totalLogged, 0)) more transaction\(max(10 - totalLogged, 0) == 1 ? "" : "s") to earn Getting Started."
+        }
+        if !unlocked.contains("streak_7") && currentStreak > 0 {
+            return "\(max(7 - currentStreak, 0)) more day\(max(7 - currentStreak, 0) == 1 ? "" : "s") to earn Week Warrior."
+        }
+        if !unlocked.contains("streak_30") && currentStreak >= 7 {
+            return "\(max(30 - currentStreak, 0)) more day\(max(30 - currentStreak, 0) == 1 ? "" : "s") to earn Month Master."
+        }
+        if unlocked.count == AchievementDefinition.all.count {
+            return "Every badge is unlocked."
+        }
+        return "Complete a goal or finish under budget to keep advancing."
+    }
+
+    private var nextUnlockCard: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "sparkles")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(Color.bobAccent)
+            Text(nextUnlockHint ?? "")
+                .font(.system(size: 13))
+                .foregroundStyle(Color.bobInk2)
+            Spacer()
+        }
+        .padding(Spacing.m)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.bobSurface)
+        .clipShape(RoundedRectangle(cornerRadius: Radius.card))
+        .overlay(RoundedRectangle(cornerRadius: Radius.card).stroke(Color.bobHairline, lineWidth: 1))
     }
 
     private func achievementCard(_ achievement: AchievementDefinition) -> some View {
