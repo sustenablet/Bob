@@ -1272,7 +1272,7 @@ struct HomeView: View {
 
                     Spacer(minLength: 4)
 
-                    Text(CurrencyFormatter.compact(projectedMonthSpend, code: currencyCode))
+                    Text(CurrencyFormatter.compact(monthIncome > 0 ? monthIncome : monthlyBudget, code: currencyCode))
                         .font(.system(size: 15, weight: .bold))
                         .foregroundStyle(Color.bobInk2)
                         .monospacedDigit()
@@ -1296,21 +1296,11 @@ struct HomeView: View {
         .buttonStyle(.plain)
     }
 
-    private var projectedMonthSpend: Decimal {
-        let cal = Calendar.current
-        let day = max(cal.component(.day, from: Date()), 1)
-        let days = cal.range(of: .day, in: .month, for: Date())?.count ?? 30
-        guard monthExpensesTotal > 0 else { return monthlyBudget > 0 ? monthlyBudget : 0 }
-        return monthExpensesTotal / Decimal(day) * Decimal(days)
-    }
-
     private var monthlySpendGraph: some View {
         let days = max(cumulativeSpend.count, 2)
-        let today = min(max(Calendar.current.component(.day, from: Date()), 1), days)
-        let actual = cumulativeSpend.prefix(today).map { $0 }
-        let projected = monthlySpendProjection(days: days, today: today)
+        let actual = cumulativeSpend.filter { $0.amount > 0 }
         let maxAmount = max(
-            projected.map { ($0.amount as NSDecimalNumber).doubleValue }.max() ?? 1,
+            actual.map { ($0.amount as NSDecimalNumber).doubleValue }.max() ?? 1,
             (monthlyBudget as NSDecimalNumber).doubleValue,
             1
         )
@@ -1321,18 +1311,6 @@ struct HomeView: View {
                 let h = geo.size.height
 
                 ZStack {
-                    LinearGradient(
-                        colors: [Color.bobInk.opacity(0.08), Color.clear],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                    .clipShape(monthlyAreaShape(data: projected, w: w, h: h, days: days, maxAmount: maxAmount))
-
-                    if projected.count > 1 {
-                        monthlyLinePath(data: projected, w: w, h: h, days: days, maxAmount: maxAmount)
-                            .stroke(Color.bobInk.opacity(0.18), style: StrokeStyle(lineWidth: 2.2, lineCap: .round, lineJoin: .round, dash: [5, 7]))
-                    }
-
                     if actual.count > 1 {
                         monthlyAreaShape(data: actual, w: w, h: h, days: days, maxAmount: maxAmount)
                             .fill(
@@ -1362,21 +1340,6 @@ struct HomeView: View {
                         .frame(maxWidth: .infinity, alignment: day == 1 ? .leading : day == days ? .trailing : .center)
                 }
             }
-        }
-    }
-
-    private func monthlySpendProjection(days: Int, today: Int) -> [(day: Int, amount: Decimal)] {
-        let current = cumulativeSpend[max(today - 1, 0)].amount
-        let target = max(projectedMonthSpend, current)
-        guard days > today else { return cumulativeSpend }
-
-        return (1...days).map { day in
-            if day <= today {
-                return cumulativeSpend[day - 1]
-            }
-            let remainingDays = Decimal(days - today)
-            let progress = Decimal(day - today) / remainingDays
-            return (day: day, amount: current + ((target - current) * progress))
         }
     }
 

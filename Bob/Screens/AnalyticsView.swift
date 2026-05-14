@@ -235,7 +235,7 @@ struct AnalyticsView: View {
 
             analyticsSlide(
                 large: .netCashFlow,
-                firstSmall: .assets,
+                firstSmall: .averageDaily,
                 secondSmall: .spent
             )
             .tag(2)
@@ -333,7 +333,7 @@ struct AnalyticsView: View {
                     .font(.system(size: 14, weight: .bold))
             }
             .foregroundStyle(netCashFlow >= 0 ? Color.bobGreen.opacity(0.88) : Color.bobDebit.opacity(0.95))
-        case .assets:
+        case .averageDaily:
             EmptyView()
         case .savingsRate:
             HStack(spacing: 7) {
@@ -350,13 +350,13 @@ struct AnalyticsView: View {
     private func metricVisualization(for kind: AnalyticsCardKind, isLarge: Bool) -> some View {
         switch kind {
         case .spent:
-            darkLineChart(data: cumulativeSeries(kind: .expense), color: Color.bobGreen.opacity(0.92), dashedAfterCurrentDay: true)
+            darkLineChart(data: cumulativeSeries(kind: .expense), color: Color.bobGreen.opacity(0.92))
         case .income:
             miniVerticalBars(values: incomeBarValues)
         case .netCashFlow:
             cashFlowBars
-        case .assets:
-            singleProgressBar(color: Color.bobHex(0x66D9E8), progress: assetProgress)
+        case .averageDaily:
+            singleProgressBar(color: Color.bobAccent, progress: averageDailyProgress)
         case .savingsRate:
             singleProgressBar(color: savingsRatePct >= 0 ? Color.bobGreen : Color.bobDebit, progress: min(max(abs(savingsRatePct) / 100, 0.08), 1))
         }
@@ -379,10 +379,10 @@ struct AnalyticsView: View {
                 .foregroundStyle(Color.bobInk)
 
             VStack(alignment: .leading, spacing: 0) {
-                Text("Total assets")
+                Text("Net this period")
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(Color.bobInk2)
-                Text(CurrencyFormatter.string(totalAssets, code: currencyCode))
+                Text(CurrencyFormatter.string(netCashFlow, code: currencyCode))
                     .font(.system(size: 32, weight: .bold, design: .rounded))
                     .foregroundStyle(Color.bobInk)
                     .monospacedDigit()
@@ -390,14 +390,14 @@ struct AnalyticsView: View {
 
                 Spacer()
 
-                singleProgressBar(color: Color.bobHex(0x66D9E8), progress: assetProgress)
+                singleProgressBar(color: netCashFlow >= 0 ? Color.bobGreen : Color.bobDebit, progress: netFlowProgress)
                     .frame(height: 38)
 
                 HStack(spacing: 10) {
                     RoundedRectangle(cornerRadius: 4)
-                        .fill(Color.bobHex(0x66D9E8))
+                        .fill(Color.bobAccent)
                         .frame(width: 12, height: 12)
-                    Text("Linked")
+                    Text("\(filteredTransactions.count) transactions")
                         .font(.system(size: 15, weight: .medium))
                         .foregroundStyle(Color.bobInk)
                 }
@@ -450,14 +450,17 @@ struct AnalyticsView: View {
         currentPeriodIncome - currentPeriodExpenses
     }
 
-    private var totalAssets: Decimal {
-        max(netCashFlow, 0)
+    private var netFlowProgress: Double {
+        let baseline = max((currentPeriodIncome as NSDecimalNumber).doubleValue, (currentPeriodExpenses as NSDecimalNumber).doubleValue, 1)
+        return min(max(abs((netCashFlow as NSDecimalNumber).doubleValue) / baseline, 0.08), 1)
     }
 
-    private var assetProgress: Double {
-        let income = (currentPeriodIncome as NSDecimalNumber).doubleValue
-        guard income > 0 else { return totalAssets > 0 ? 1 : 0.08 }
-        return min(max((totalAssets as NSDecimalNumber).doubleValue / income, 0.08), 1)
+    private var averageDailyProgress: Double {
+        let totalDays = max(cumulativeSeries(kind: reportKind).count, 1)
+        let total = (totalAmount as NSDecimalNumber).doubleValue
+        guard total > 0 else { return 0.08 }
+        let avg = (avgDailySpend as NSDecimalNumber).doubleValue
+        return min(max(avg / (total / Double(totalDays)), 0.08), 1)
     }
 
     private var incomeBarValues: [Decimal] {
@@ -478,8 +481,8 @@ struct AnalyticsView: View {
             return CurrencyFormatter.string(currentPeriodIncome, code: currencyCode)
         case .netCashFlow:
             return CurrencyFormatter.string(abs(netCashFlow as NSDecimalNumber as Decimal), code: currencyCode)
-        case .assets:
-            return CurrencyFormatter.string(totalAssets, code: currencyCode)
+        case .averageDaily:
+            return avgDailySpend > 0 ? CurrencyFormatter.string(avgDailySpend, code: currencyCode) : "—"
         case .savingsRate:
             return currentPeriodIncome > 0 ? String(format: "%.0f%%", savingsRatePct) : "0%"
         }
@@ -527,19 +530,9 @@ struct AnalyticsView: View {
         }
     }
 
-    private var currentDayInSelectedPeriod: Int {
-        let cal = Calendar.current
-        let bounds = boundsForSelectedPeriod
-        let totalDays = max(cal.dateComponents([.day], from: bounds.start, to: bounds.end).day ?? 1, 1)
-        guard Date() >= bounds.start && Date() < bounds.end else { return totalDays }
-        return min(max((cal.dateComponents([.day], from: bounds.start, to: Date()).day ?? 0) + 1, 1), totalDays)
-    }
-
-    private func darkLineChart(data: [(day: Int, amount: Decimal)], color: Color, dashedAfterCurrentDay: Bool) -> some View {
+    private func darkLineChart(data: [(day: Int, amount: Decimal)], color: Color) -> some View {
         let maxAmount = max(((data.map(\.amount).max() ?? Decimal(1)) as NSDecimalNumber).doubleValue, 1)
-        let currentDay = dashedAfterCurrentDay ? currentDayInSelectedPeriod : data.count
-        let actual = data.filter { $0.day <= currentDay }
-        let projected = projectedSeries(from: data, currentDay: currentDay)
+        let actual = data.filter { $0.amount > 0 }
 
         return VStack(spacing: 8) {
             GeometryReader { geo in
@@ -547,11 +540,6 @@ struct AnalyticsView: View {
                 let height = geo.size.height
 
                 ZStack {
-                    if projected.count > 1 {
-                        analyticsLinePath(data: projected, width: width, height: height, maxAmount: maxAmount)
-                            .stroke(Color.bobInk.opacity(0.18), style: StrokeStyle(lineWidth: 2.2, lineCap: .round, lineJoin: .round, dash: [5, 7]))
-                    }
-
                     if actual.count > 1 {
                         analyticsLinePath(data: actual, width: width, height: height, maxAmount: maxAmount)
                             .stroke(color, style: StrokeStyle(lineWidth: 2.6, lineCap: .round, lineJoin: .round))
@@ -574,21 +562,6 @@ struct AnalyticsView: View {
                         .frame(maxWidth: .infinity, alignment: day == 1 ? .leading : day == max(data.count, 2) ? .trailing : .center)
                 }
             }
-        }
-    }
-
-    private func projectedSeries(from data: [(day: Int, amount: Decimal)], currentDay: Int) -> [(day: Int, amount: Decimal)] {
-        guard !data.isEmpty else { return [] }
-        let totalDays = data.count
-        let currentIndex = min(max(currentDay - 1, 0), totalDays - 1)
-        let currentAmount = data[currentIndex].amount
-        guard currentDay < totalDays else { return data }
-
-        let projectedTotal = currentAmount / Decimal(max(currentDay, 1)) * Decimal(totalDays)
-        return (1...totalDays).map { day in
-            if day <= currentDay { return data[day - 1] }
-            let progress = Decimal(day - currentDay) / Decimal(max(totalDays - currentDay, 1))
-            return (day: day, amount: currentAmount + ((projectedTotal - currentAmount) * progress))
         }
     }
 
@@ -1552,7 +1525,7 @@ private enum AnalyticsCardKind {
     case spent
     case income
     case netCashFlow
-    case assets
+    case averageDaily
     case savingsRate
 
     var title: String {
@@ -1560,7 +1533,7 @@ private enum AnalyticsCardKind {
         case .spent: return "Spent"
         case .income: return "Income"
         case .netCashFlow: return "Net cash flow"
-        case .assets: return "Total assets"
+        case .averageDaily: return "Daily average"
         case .savingsRate: return "Savings rate"
         }
     }
