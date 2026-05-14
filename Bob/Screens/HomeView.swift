@@ -52,18 +52,11 @@ struct HomeView: View {
 
     // Cumulative daily spend for chart
     private var cumulativeSpend: [(day: Int, amount: Decimal)] {
-        let cal = Calendar.current
-        var dict: [Int: Decimal] = [:]
-        for tx in monthTransactions where tx.kind == .expense {
-            let d = cal.component(.day, from: tx.date)
-            dict[d, default: 0] += tx.amount
-        }
-        let days = cal.range(of: .day, in: .month, for: Date())?.count ?? 30
-        var cum: Decimal = 0
-        return (1...days).map { day in
-            cum += dict[day] ?? 0
-            return (day: day, amount: cum)
-        }
+        ChartDataService.cumulativeDailyExpensePoints(
+            transactions: allExpenses,
+            monthDate: Date(),
+            calendar: Calendar.current
+        )
     }
 
     // Next upcoming recurring
@@ -115,17 +108,12 @@ struct HomeView: View {
     }
 
     private var last6MonthsData: [(label: String, income: Decimal, expenses: Decimal)] {
-        let cal = Calendar.current
-        let df = DateFormatter(); df.dateFormat = "MMM"
-        return (0..<6).reversed().map { offset -> (String, Decimal, Decimal) in
-            guard let date = cal.date(byAdding: .month, value: -offset, to: Date()),
-                  let start = cal.date(from: cal.dateComponents([.year, .month], from: date)),
-                  let end   = cal.date(byAdding: .month, value: 1, to: start) else { return ("", 0, 0) }
-            let txns = allExpenses.filter { $0.date >= start && $0.date < end }
-            let inc  = txns.filter { $0.kind == .income }.reduce(Decimal(0)) { $0 + $1.amount }
-            let exp  = txns.filter { $0.kind == .expense }.reduce(Decimal(0)) { $0 + $1.amount }
-            return (df.string(from: date), inc, exp)
-        }
+        ChartDataService.monthlyIncomeExpenseSeries(
+            transactions: allExpenses,
+            months: 6,
+            now: Date(),
+            calendar: Calendar.current
+        )
     }
 
     // MARK: – Body

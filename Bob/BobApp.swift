@@ -15,7 +15,8 @@ struct BobApp: App {
             Goal.self,
             GoalContribution.self,
             RecurringTransaction.self,
-            QuickAddTemplate.self
+            QuickAddTemplate.self,
+            JobIncomeProfile.self
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 

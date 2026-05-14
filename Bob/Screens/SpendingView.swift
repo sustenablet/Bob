@@ -20,61 +20,24 @@ struct SpendingView: View {
     // MARK: – Period segments
 
     private var segments: [PeriodSegment] {
+        let chartPeriod: ChartPeriod
+        let count: Int
         switch selectedPeriod {
-        case .week:    return lastNWeeks(6)
-        case .month:   return lastNMonths(6)
-        case .quarter: return lastNQuarters(4)
-        case .year:    return lastNYears(3)
+        case .week:
+            chartPeriod = .week
+            count = 6
+        case .month:
+            chartPeriod = .month
+            count = 6
+        case .quarter:
+            chartPeriod = .quarter
+            count = 4
+        case .year:
+            chartPeriod = .year
+            count = 3
         }
-    }
-
-    private func lastNWeeks(_ n: Int) -> [PeriodSegment] {
-        let today = cal.startOfDay(for: Date())
-        let weekday = cal.component(.weekday, from: today)
-        let startOfThisWeek = cal.date(byAdding: .day, value: -(weekday - 1), to: today)!
-        return (0..<n).reversed().map { offset in
-            let start = cal.date(byAdding: .weekOfYear, value: -offset, to: startOfThisWeek)!
-            let end   = cal.date(byAdding: .day, value: 6, to: start)!
-            let f = DateFormatter(); f.dateFormat = "M/d"
-            return PeriodSegment(label: f.string(from: start), start: start, end: end)
-        }
-    }
-
-    private func lastNMonths(_ n: Int) -> [PeriodSegment] {
-        let now = Date()
-        return (0..<n).reversed().map { offset in
-            let d = cal.date(byAdding: .month, value: -offset, to: now)!
-            let comps = cal.dateComponents([.year, .month], from: d)
-            let start = cal.date(from: comps)!
-            let end   = cal.date(byAdding: .month, value: 1, to: start)!
-            let f = DateFormatter(); f.dateFormat = "MMM"
-            return PeriodSegment(label: f.string(from: start), start: start, end: end)
-        }
-    }
-
-    private func lastNQuarters(_ n: Int) -> [PeriodSegment] {
-        let now = Date()
-        let month = cal.component(.month, from: now)
-        let quarterStart = ((month - 1) / 3) * 3 + 1
-        var result: [PeriodSegment] = []
-        for i in (0..<n).reversed() {
-            let offset = -i * 3
-            let s = cal.date(byAdding: .month, value: offset - (month - quarterStart), to: cal.date(from: cal.dateComponents([.year, .month], from: now))!)!
-            let e = cal.date(byAdding: .month, value: 3, to: s)!
-            let f = DateFormatter(); f.dateFormat = "MMM"
-            result.append(PeriodSegment(label: "Q \(f.string(from: s))", start: s, end: e))
-        }
-        return result
-    }
-
-    private func lastNYears(_ n: Int) -> [PeriodSegment] {
-        let now = Date()
-        return (0..<n).reversed().map { offset in
-            let d = cal.date(byAdding: .year, value: -offset, to: now)!
-            let start = cal.date(from: cal.dateComponents([.year], from: d))!
-            let end   = cal.date(byAdding: .year, value: 1, to: start)!
-            let f = DateFormatter(); f.dateFormat = "yyyy"
-            return PeriodSegment(label: f.string(from: start), start: start, end: end)
+        return ChartDataService.segments(for: chartPeriod, count: count).map {
+            PeriodSegment(label: $0.label, start: $0.start, end: $0.end)
         }
     }
 
@@ -124,14 +87,12 @@ struct SpendingView: View {
 
     private var dailyBreakdown: [(label: String, amount: Decimal)] {
         guard let seg = currentSegment else { return [] }
-        let cal = Calendar.current
-        var dict: [Date: Decimal] = [:]
-        for tx in expenses(in: seg) {
-            dict[cal.startOfDay(for: tx.date), default: 0] += tx.amount
-        }
-        let df = DateFormatter(); df.dateFormat = "d"
-        return dict.sorted { $0.key < $1.key }
-                   .map { (df.string(from: $0.key), $0.value) }
+        return ChartDataService.dailyExpenseBreakdown(
+            transactions: allExpenses,
+            from: seg.start,
+            to: seg.end,
+            calendar: Calendar.current
+        )
     }
 
     private var maxBarValue: Decimal {

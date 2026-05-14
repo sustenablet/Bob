@@ -210,6 +210,17 @@ struct SettingsView: View {
     private var manageGroup: some View {
         settingsGroup("Manage") {
             NavigationLink {
+                JobIncomeSetupView()
+            } label: {
+                navRowLabel(icon: "briefcase.fill", color: Color.bobHex(0x1A73E8),
+                            title: "Job Income",
+                            value: "Setup")
+            }
+            .buttonStyle(.plain)
+
+            rowDivider
+
+            NavigationLink {
                 CategoriesView()
             } label: {
                 navRowLabel(icon: "tag.fill", color: Color.bobHex(0x0F9D58),
