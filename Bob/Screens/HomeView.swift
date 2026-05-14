@@ -147,7 +147,7 @@ struct HomeView: View {
                         .padding(.top, 22)
                     recentTransactionsSection
                         .padding(.top, 20)
-                    dashboardInsightsStrip
+                    monthlySpendCard
                         .padding(.top, 20)
                     Spacer().frame(height: 120)
                 }
@@ -403,10 +403,10 @@ struct HomeView: View {
     }
 
     private var dashboardPromoCard: some View {
-        Button { showingAchievements = true } label: {
+        Button { showingPetDetail = true } label: {
             HStack(spacing: 18) {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text(promoTitle)
+                    Text("\(petName) is watching your money")
                         .font(.system(size: 20, weight: .bold))
                         .foregroundStyle(.white)
                         .multilineTextAlignment(.leading)
@@ -456,55 +456,6 @@ struct HomeView: View {
         .sheet(isPresented: $showingAchievements) {
             AchievementsView()
         }
-    }
-
-    private var dashboardInsightsStrip: some View {
-        HStack(spacing: 12) {
-            revolutStatTile(
-                title: "Spent this month",
-                value: CurrencyFormatter.compact(monthExpensesTotal, code: currencyCode),
-                accent: Color.bobDebit
-            )
-            revolutStatTile(
-                title: "Budget left",
-                value: budgetLeftText,
-                accent: Color.bobGreen
-            )
-            revolutStatTile(
-                title: "Savings rate",
-                value: monthIncome > 0 ? String(format: "%.0f%%", savingsRate) : "—",
-                accent: Color.bobAccent
-            )
-        }
-        .padding(.horizontal, Spacing.pageMargin)
-    }
-
-    private func revolutStatTile(title: String, value: String, accent: Color) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(Color.white.opacity(0.55))
-            Text(value)
-                .font(.system(size: 17, weight: .bold))
-                .foregroundStyle(.white)
-                .monospacedDigit()
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-            Capsule()
-                .fill(accent)
-                .frame(width: 34, height: 4)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 14)
-        .padding(.vertical, 16)
-        .background(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(Color.white.opacity(0.06))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 20, style: .continuous)
-                        .stroke(Color.white.opacity(0.05), lineWidth: 1)
-                )
-        )
     }
 
     private var budgetLeftText: String {
@@ -1282,34 +1233,24 @@ struct HomeView: View {
     // MARK: – Recent transactions
 
     private var recentTransactionsSection: some View {
-        VStack(alignment: .leading, spacing: Spacing.m) {
-            HStack {
-                sectionHeader("RECENT TRANSACTIONS")
-                Spacer()
-                Button { showAllTransactions = true } label: {
-                    Text("See All")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.78))
-                }
-                .buttonStyle(.plain)
-                .padding(.trailing, Spacing.pageMargin)
-            }
-
-            // Recent transaction rows
+        Button { onSwitchTab?(.spending) } label: {
             if !recentExpenses.isEmpty {
                 VStack(spacing: 0) {
                     ForEach(Array(recentExpenses.enumerated()), id: \.element.id) { idx, tx in
-                        Button { editingExpense = tx } label: {
-                            transactionRow(tx)
-                        }
-                        .buttonStyle(.plain)
+                        transactionRow(tx)
                         if idx < recentExpenses.count - 1 {
-                            Divider()
-                                .background(Color.bobHairline)
-                                .padding(.leading, 68)
+                            Spacer().frame(height: 28)
                         }
                     }
+
+                    Text("See all")
+                        .font(.system(size: 20, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, 30)
                 }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 24)
                 .background(
                     RoundedRectangle(cornerRadius: 28, style: .continuous)
                         .fill(Color.white.opacity(0.09))
@@ -1320,79 +1261,257 @@ struct HomeView: View {
                 )
                 .padding(.horizontal, Spacing.pageMargin)
             } else {
-                Button { isAddingTransaction = true } label: {
-                    HStack(spacing: 14) {
-                        ZStack {
-                            Circle()
-                                .fill(Color.white.opacity(0.12))
-                                .frame(width: 50, height: 50)
-                            Image(systemName: "plus")
-                                .font(.system(size: 20, weight: .semibold))
-                                .foregroundStyle(.white)
-                        }
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Log your first transaction")
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundStyle(.white)
-                            Text("Start building your dashboard history.")
-                                .font(.system(size: 13))
-                                .foregroundStyle(Color.white.opacity(0.7))
-                        }
-                        Spacer()
+                HStack(spacing: 14) {
+                    ZStack {
+                        Circle()
+                            .fill(Color.white.opacity(0.12))
+                            .frame(width: 50, height: 50)
+                        Image(systemName: "chart.line.uptrend.xyaxis")
+                            .font(.system(size: 20, weight: .semibold))
+                            .foregroundStyle(.white)
                     }
-                    .padding(18)
-                    .background(
-                        RoundedRectangle(cornerRadius: 24, style: .continuous)
-                            .fill(Color.white.opacity(0.08))
-                    )
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("No recent transactions")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(.white)
+                        Text("Open analytics to review your spending once activity appears.")
+                            .font(.system(size: 13))
+                            .foregroundStyle(Color.white.opacity(0.7))
+                    }
+                    Spacer()
                 }
-                .buttonStyle(.plain)
+                .padding(18)
+                .background(
+                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                        .fill(Color.white.opacity(0.08))
+                )
                 .padding(.horizontal, Spacing.pageMargin)
             }
         }
+        .buttonStyle(.plain)
     }
 
     private var recentExpenses: [Expense] {
-        Array(allExpenses.prefix(8))
+        Array(allExpenses.prefix(2))
     }
 
     private func transactionRow(_ tx: Expense) -> some View {
         let isIncome = tx.kind == .income
         let amount = CurrencyFormatter.string(tx.amount, code: currencyCode)
-        let display = isIncome ? "+\(amount)" : amount
+        let display = isIncome ? "+\(amount)" : "-\(amount)"
         let amountColor: Color = isIncome ? .white : .white
 
-        return HStack(spacing: 14) {
+        return HStack(alignment: .top, spacing: 18) {
             // Icon
             ZStack {
                 Circle()
-                    .fill(Color.white.opacity(0.1))
-                    .frame(width: 42, height: 42)
+                    .fill(isIncome ? Color.bobGreen : Color.bobHex(0x7AD744))
+                    .frame(width: 60, height: 60)
                 Image(systemName: tx.category?.sfSymbol ?? "circle.dashed")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.86))
+                    .font(.system(size: 24, weight: .semibold))
+                    .foregroundStyle(.white)
             }
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(displayTitle(for: tx))
-                    .font(.system(size: 15, weight: .medium))
+                    .font(.system(size: 22, weight: .bold))
                     .foregroundStyle(.white)
-                    .lineLimit(1)
+                    .lineLimit(2)
                 Text(relativeDate(tx.date))
-                    .font(.system(size: 12))
-                    .foregroundStyle(Color.white.opacity(0.6))
+                    .font(.system(size: 19, weight: .medium))
+                    .foregroundStyle(Color.white.opacity(0.7))
             }
 
             Spacer()
 
             Text(display)
-                .font(.system(size: 15, weight: .semibold))
+                .font(.system(size: 22, weight: .medium))
                 .monospacedDigit()
                 .foregroundStyle(amountColor)
         }
-        .padding(.horizontal, Spacing.m)
-        .padding(.vertical, 13)
         .contentShape(Rectangle())
+    }
+
+    // MARK: – Monthly spend card
+
+    private var monthlySpendCard: some View {
+        Button { onSwitchTab?(.spending) } label: {
+            VStack(alignment: .leading, spacing: 0) {
+                Text("Spent this month")
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundStyle(Color.white.opacity(0.58))
+
+                HStack(alignment: .lastTextBaseline, spacing: 12) {
+                    Text(CurrencyFormatter.string(monthExpensesTotal, code: currencyCode))
+                        .font(.system(size: 48, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
+                        .monospacedDigit()
+                        .minimumScaleFactor(0.7)
+                        .lineLimit(1)
+
+                    if lastMonthExpensesTotal > 0 {
+                        HStack(spacing: 6) {
+                            Image(systemName: momIsPositive ? "arrowtriangle.down.fill" : "arrowtriangle.up.fill")
+                                .font(.system(size: 14, weight: .bold))
+                            Text(CurrencyFormatter.string(abs(momDiff as NSDecimalNumber as Decimal), code: currencyCode))
+                                .font(.system(size: 20, weight: .bold))
+                                .monospacedDigit()
+                        }
+                        .foregroundStyle(momIsPositive ? Color.bobGreen.opacity(0.9) : Color.bobDebit.opacity(0.95))
+                    }
+
+                    Spacer(minLength: 4)
+
+                    Text(CurrencyFormatter.compact(projectedMonthSpend, code: currencyCode))
+                        .font(.system(size: 21, weight: .bold))
+                        .foregroundStyle(Color.white.opacity(0.68))
+                        .monospacedDigit()
+                }
+                .padding(.top, 4)
+
+                monthlySpendGraph
+                    .padding(.top, 20)
+            }
+            .padding(.horizontal, 22)
+            .padding(.top, 24)
+            .padding(.bottom, 22)
+            .background(
+                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    .fill(Color.white.opacity(0.09))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 28, style: .continuous)
+                            .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                    )
+            )
+            .padding(.horizontal, Spacing.pageMargin)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var projectedMonthSpend: Decimal {
+        let cal = Calendar.current
+        let day = max(cal.component(.day, from: Date()), 1)
+        let days = cal.range(of: .day, in: .month, for: Date())?.count ?? 30
+        guard monthExpensesTotal > 0 else { return monthlyBudget > 0 ? monthlyBudget : 0 }
+        return monthExpensesTotal / Decimal(day) * Decimal(days)
+    }
+
+    private var monthlySpendGraph: some View {
+        let days = max(cumulativeSpend.count, 2)
+        let today = min(max(Calendar.current.component(.day, from: Date()), 1), days)
+        let actual = cumulativeSpend.prefix(today).map { $0 }
+        let projected = monthlySpendProjection(days: days, today: today)
+        let maxAmount = max(
+            projected.map { ($0.amount as NSDecimalNumber).doubleValue }.max() ?? 1,
+            (monthlyBudget as NSDecimalNumber).doubleValue,
+            1
+        )
+
+        return VStack(spacing: 10) {
+            GeometryReader { geo in
+                let w = geo.size.width
+                let h = geo.size.height
+
+                ZStack {
+                    LinearGradient(
+                        colors: [Color.white.opacity(0.12), Color.clear],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .clipShape(monthlyAreaShape(data: projected, w: w, h: h, days: days, maxAmount: maxAmount))
+
+                    if projected.count > 1 {
+                        monthlyLinePath(data: projected, w: w, h: h, days: days, maxAmount: maxAmount)
+                            .stroke(Color.white.opacity(0.22), style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round, dash: [5, 7]))
+                    }
+
+                    if actual.count > 1 {
+                        monthlyAreaShape(data: actual, w: w, h: h, days: days, maxAmount: maxAmount)
+                            .fill(
+                                LinearGradient(
+                                    colors: [Color.bobGreen.opacity(0.34), Color.bobGreen.opacity(0.04)],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                )
+                            )
+
+                        monthlyLinePath(data: actual, w: w, h: h, days: days, maxAmount: maxAmount)
+                            .stroke(Color.bobGreen.opacity(0.92), style: StrokeStyle(lineWidth: 4, lineCap: .round, lineJoin: .round))
+                    } else if monthExpensesTotal <= 0 {
+                        Text("No spending data yet")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(Color.white.opacity(0.58))
+                    }
+                }
+            }
+            .frame(height: 138)
+
+            HStack {
+                ForEach(monthAxisDays(days: days), id: \.self) { day in
+                    Text("\(day)")
+                        .font(.system(size: 18, weight: .medium))
+                        .foregroundStyle(Color.white.opacity(0.55))
+                        .frame(maxWidth: .infinity, alignment: day == 1 ? .leading : day == days ? .trailing : .center)
+                }
+            }
+        }
+    }
+
+    private func monthlySpendProjection(days: Int, today: Int) -> [(day: Int, amount: Decimal)] {
+        let current = cumulativeSpend[max(today - 1, 0)].amount
+        let target = max(projectedMonthSpend, current)
+        guard days > today else { return cumulativeSpend }
+
+        return (1...days).map { day in
+            if day <= today {
+                return cumulativeSpend[day - 1]
+            }
+            let remainingDays = Decimal(days - today)
+            let progress = Decimal(day - today) / remainingDays
+            return (day: day, amount: current + ((target - current) * progress))
+        }
+    }
+
+    private func monthAxisDays(days: Int) -> [Int] {
+        let proposed = [1, 6, 11, 16, 21, 26, days]
+        return proposed.reduce(into: [Int]()) { result, day in
+            let clamped = min(max(day, 1), days)
+            if result.last != clamped { result.append(clamped) }
+        }
+    }
+
+    private func monthlyLinePath(data: [(day: Int, amount: Decimal)], w: CGFloat, h: CGFloat, days: Int, maxAmount: Double) -> Path {
+        var path = Path()
+        guard days > 1 else { return path }
+        for (index, point) in data.enumerated() {
+            let position = monthlyPoint(point, w: w, h: h, days: days, maxAmount: maxAmount)
+            index == 0 ? path.move(to: position) : path.addLine(to: position)
+        }
+        return path
+    }
+
+    private func monthlyAreaShape(data: [(day: Int, amount: Decimal)], w: CGFloat, h: CGFloat, days: Int, maxAmount: Double) -> Path {
+        var path = Path()
+        guard days > 1, let first = data.first else { return path }
+        let firstPoint = monthlyPoint(first, w: w, h: h, days: days, maxAmount: maxAmount)
+        path.move(to: CGPoint(x: firstPoint.x, y: h))
+        path.addLine(to: firstPoint)
+        for point in data.dropFirst() {
+            path.addLine(to: monthlyPoint(point, w: w, h: h, days: days, maxAmount: maxAmount))
+        }
+        if let last = data.last {
+            path.addLine(to: CGPoint(x: monthlyPoint(last, w: w, h: h, days: days, maxAmount: maxAmount).x, y: h))
+        }
+        path.closeSubpath()
+        return path
+    }
+
+    private func monthlyPoint(_ point: (day: Int, amount: Decimal), w: CGFloat, h: CGFloat, days: Int, maxAmount: Double) -> CGPoint {
+        let x = CGFloat(point.day - 1) / CGFloat(max(days - 1, 1)) * w
+        let value = (point.amount as NSDecimalNumber).doubleValue
+        let normalized = min(max(value / max(maxAmount, 1), 0), 1)
+        let y = h - CGFloat(normalized) * h * 0.76 - h * 0.12
+        return CGPoint(x: x, y: y)
     }
 
     // MARK: – Helpers

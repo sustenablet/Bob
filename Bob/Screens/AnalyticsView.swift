@@ -4,6 +4,8 @@ import SwiftData
 // MARK: – Main view
 
 struct AnalyticsView: View {
+    @Environment(\.dismiss) private var dismiss
+
     @Query(sort: \Expense.date, order: .reverse) private var allExpenses: [Expense]
     @Query(sort: \BudgetSettings.monthlyBudget) private var settingsList: [BudgetSettings]
 
@@ -13,6 +15,7 @@ struct AnalyticsView: View {
     @State private var chartType: ChartDisplayType = .donut
     @State private var drilldownCategory: CategoryData? = nil
     @State private var editingTransaction: Expense? = nil
+    @State private var selectedCarouselPage: Int = 0
 
     private var currencyCode: String { settingsList.first?.currencyCode ?? "USD" }
     private var budget: Decimal { settingsList.first?.monthlyBudget ?? 0 }
@@ -110,52 +113,42 @@ struct AnalyticsView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                Color.bobBackground.ignoresSafeArea()
-                ScrollView {
-                    VStack(spacing: Spacing.l) {
-                        pageHeader(title: "Analytics", subtitle: "Your financial breakdown")
-                            .padding(.horizontal, Spacing.pageMargin)
-                        periodSummaryCard.padding(.horizontal, Spacing.pageMargin)
-                        kindToggle.padding(.horizontal, Spacing.pageMargin)
-                        periodPicker
+                Color.black.ignoresSafeArea()
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        analyticsTopBar
+                            .padding(.horizontal, 20)
+                            .padding(.top, 18)
 
-                        if categoryData.isEmpty {
-                            emptyState.padding(.horizontal, Spacing.pageMargin)
-                        } else {
-                            keyMetricsRow.padding(.horizontal, Spacing.pageMargin)
-                            chartSection.padding(.horizontal, Spacing.pageMargin)
-                            if budget > 0 && selectedPeriod == .currentMonth && reportKind == .expense {
-                                budgetVsActualSection.padding(.horizontal, Spacing.pageMargin)
-                            }
-                            categoryList.padding(.horizontal, Spacing.pageMargin)
-                            if !insights.isEmpty {
-                                insightsSection.padding(.horizontal, Spacing.pageMargin)
-                            }
-                            if (selectedPeriod == .currentMonth || selectedPeriod == .lastMonth) {
-                                weeklyBreakdownSection.padding(.horizontal, Spacing.pageMargin)
-                            }
-                            if reportKind == .expense && recurringVsOneTimeSplit != nil {
-                                recurringVsOneTimeSection.padding(.horizontal, Spacing.pageMargin)
-                            }
-                            if reportKind == .expense && !topMerchants.isEmpty {
-                                topMerchantsSection.padding(.horizontal, Spacing.pageMargin)
-                            }
-                            if weekdayData.filter({ $0.amount > 0 }).count >= 3 {
-                                dayOfWeekSection.padding(.horizontal, Spacing.pageMargin)
-                            }
-                            if reportKind == .expense && !biggestTransactions.isEmpty {
-                                biggestTransactionsSection.padding(.horizontal, Spacing.pageMargin)
-                            }
-                            if dailySpending.count >= 2 {
-                                trendSection.padding(.horizontal, Spacing.pageMargin)
-                            }
-                            streakAndTrendSection.padding(.horizontal, Spacing.pageMargin)
+                        Text("Analytics")
+                            .font(.system(size: 42, weight: .black, design: .rounded))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 20)
+                            .padding(.top, 34)
+
+                        analyticsFilterRow
+                            .padding(.horizontal, 20)
+                            .padding(.top, 54)
+
+                        analyticsCarousel
+                            .padding(.top, 24)
+
+                        carouselDots
+                            .padding(.top, 18)
+                            .frame(maxWidth: .infinity)
+
+                        overviewSection
+                            .padding(.horizontal, 20)
+                            .padding(.top, 50)
+
+                        if !categoryData.isEmpty {
+                            darkCategorySection
+                                .padding(.horizontal, 20)
+                                .padding(.top, 24)
                         }
 
-                        trendsSection.padding(.horizontal, Spacing.pageMargin)
+                        Spacer().frame(height: 120)
                     }
-                    .padding(.top, Spacing.m)
-                    .padding(.bottom, 100)
                 }
             }
             .navigationBarHidden(true)
@@ -174,6 +167,484 @@ struct AnalyticsView: View {
         }
         .onChange(of: reportKind)     { _, _ in withAnimation { selectedCategoryIndex = nil } }
         .onChange(of: selectedPeriod) { _, _ in withAnimation { selectedCategoryIndex = nil } }
+    }
+
+    // MARK: – Redesigned analytics
+
+    private var analyticsTopBar: some View {
+        Button { dismiss() } label: {
+            Image(systemName: "arrow.left")
+                .font(.system(size: 24, weight: .bold))
+                .foregroundStyle(.white)
+                .frame(width: 72, height: 72)
+                .background(
+                    Circle()
+                        .fill(Color.white.opacity(0.1))
+                        .overlay(Circle().stroke(Color.white.opacity(0.08), lineWidth: 1))
+                )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var analyticsFilterRow: some View {
+        HStack(alignment: .center) {
+            Menu {
+                Button("Savings") { reportKind = .expense }
+                Button("Income") { reportKind = .income }
+            } label: {
+                HStack(spacing: 12) {
+                    Text(reportKind == .expense ? "SAVINGS" : "INCOME")
+                        .font(.system(size: 25, weight: .black))
+                        .foregroundStyle(.white)
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 17, weight: .black))
+                        .foregroundStyle(Color.white.opacity(0.72))
+                }
+            }
+            .buttonStyle(.plain)
+
+            Spacer()
+
+            Menu {
+                ForEach(AnalyticsPeriod.allCases, id: \.self) { period in
+                    Button(period.label) { selectedPeriod = period }
+                }
+            } label: {
+                Text(selectedPeriod.label)
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundStyle(Color.bobHex(0x7EA2FF))
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private var analyticsCarousel: some View {
+        TabView(selection: $selectedCarouselPage) {
+            analyticsSlide(
+                large: .spent,
+                firstSmall: .income,
+                secondSmall: .netCashFlow
+            )
+            .tag(0)
+
+            analyticsSlide(
+                large: .income,
+                firstSmall: .spent,
+                secondSmall: .savingsRate
+            )
+            .tag(1)
+
+            analyticsSlide(
+                large: .netCashFlow,
+                firstSmall: .assets,
+                secondSmall: .spent
+            )
+            .tag(2)
+
+            analyticsSlide(
+                large: .savingsRate,
+                firstSmall: .income,
+                secondSmall: .netCashFlow
+            )
+            .tag(3)
+        }
+        .tabViewStyle(.page(indexDisplayMode: .never))
+        .frame(height: 438)
+    }
+
+    private func analyticsSlide(large: AnalyticsCardKind, firstSmall: AnalyticsCardKind, secondSmall: AnalyticsCardKind) -> some View {
+        VStack(spacing: 20) {
+            analyticsMetricCard(kind: large, isLarge: true)
+                .frame(height: 208)
+
+            HStack(spacing: 20) {
+                analyticsMetricCard(kind: firstSmall, isLarge: false)
+                analyticsMetricCard(kind: secondSmall, isLarge: false)
+            }
+            .frame(height: 190)
+        }
+        .padding(.horizontal, 20)
+    }
+
+    private func analyticsMetricCard(kind: AnalyticsCardKind, isLarge: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text(kind.title)
+                .font(.system(size: isLarge ? 20 : 19, weight: .bold))
+                .foregroundStyle(Color.white.opacity(0.58))
+
+            Text(primaryValue(for: kind))
+                .font(.system(size: isLarge ? 38 : 34, weight: .black, design: .rounded))
+                .foregroundStyle(.white)
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.62)
+                .padding(.top, 2)
+
+            metricDelta(for: kind)
+                .padding(.top, isLarge ? 2 : 8)
+
+            Spacer(minLength: 10)
+
+            metricVisualization(for: kind, isLarge: isLarge)
+                .frame(height: isLarge ? 76 : 70)
+        }
+        .padding(.horizontal, isLarge ? 20 : 18)
+        .padding(.top, isLarge ? 18 : 18)
+        .padding(.bottom, isLarge ? 18 : 16)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .fill(Color.bobHex(0x18181B))
+        )
+    }
+
+    @ViewBuilder
+    private func metricDelta(for kind: AnalyticsCardKind) -> some View {
+        switch kind {
+        case .spent:
+            let change = currentPeriodExpenses - prevPeriodExpenses
+            let isDown = change <= 0
+            if prevPeriodExpenses > 0 {
+                HStack(spacing: 6) {
+                    Image(systemName: isDown ? "arrowtriangle.down.fill" : "arrowtriangle.up.fill")
+                        .font(.system(size: 14, weight: .bold))
+                    Text(CurrencyFormatter.string(abs(change as NSDecimalNumber as Decimal), code: currencyCode))
+                        .font(.system(size: 20, weight: .bold))
+                        .monospacedDigit()
+                }
+                .foregroundStyle(isDown ? Color.bobGreen.opacity(0.88) : Color.bobDebit.opacity(0.95))
+            }
+        case .income:
+            let change = currentPeriodIncome - prevPeriodIncome
+            if prevPeriodIncome > 0 {
+                HStack(spacing: 6) {
+                    Image(systemName: change >= 0 ? "arrowtriangle.up.fill" : "arrowtriangle.down.fill")
+                        .font(.system(size: 13, weight: .bold))
+                    Text(CurrencyFormatter.string(abs(change as NSDecimalNumber as Decimal), code: currencyCode))
+                        .font(.system(size: 18, weight: .bold))
+                        .monospacedDigit()
+                }
+                .foregroundStyle(change >= 0 ? Color.bobGreen.opacity(0.88) : Color.bobDebit.opacity(0.95))
+            }
+        case .netCashFlow:
+            HStack(spacing: 7) {
+                Image(systemName: netCashFlow >= 0 ? "plus.circle.fill" : "minus.circle.fill")
+                    .font(.system(size: 15, weight: .bold))
+                Text(netCashFlow >= 0 ? "Positive" : "Negative")
+                    .font(.system(size: 19, weight: .bold))
+            }
+            .foregroundStyle(netCashFlow >= 0 ? Color.bobGreen.opacity(0.88) : Color.bobDebit.opacity(0.95))
+        case .assets:
+            EmptyView()
+        case .savingsRate:
+            HStack(spacing: 7) {
+                Image(systemName: savingsRatePct >= 0 ? "plus.circle.fill" : "minus.circle.fill")
+                    .font(.system(size: 15, weight: .bold))
+                Text(savingsRatePct >= 0 ? "Positive" : "Tight")
+                    .font(.system(size: 19, weight: .bold))
+            }
+            .foregroundStyle(savingsRatePct >= 0 ? Color.bobGreen.opacity(0.88) : Color.bobDebit.opacity(0.95))
+        }
+    }
+
+    @ViewBuilder
+    private func metricVisualization(for kind: AnalyticsCardKind, isLarge: Bool) -> some View {
+        switch kind {
+        case .spent:
+            darkLineChart(data: cumulativeSeries(kind: .expense), color: Color.bobGreen.opacity(0.92), dashedAfterCurrentDay: true)
+        case .income:
+            miniVerticalBars(values: incomeBarValues)
+        case .netCashFlow:
+            cashFlowBars
+        case .assets:
+            singleProgressBar(color: Color.bobHex(0x66D9E8), progress: assetProgress)
+        case .savingsRate:
+            singleProgressBar(color: savingsRatePct >= 0 ? Color.bobGreen : Color.bobDebit, progress: min(max(abs(savingsRatePct) / 100, 0.08), 1))
+        }
+    }
+
+    private var carouselDots: some View {
+        HStack(spacing: 8) {
+            ForEach(0..<4, id: \.self) { idx in
+                Circle()
+                    .fill(idx == selectedCarouselPage ? Color.white.opacity(0.56) : Color.white.opacity(0.22))
+                    .frame(width: 8, height: 8)
+            }
+        }
+    }
+
+    private var overviewSection: some View {
+        VStack(alignment: .leading, spacing: 22) {
+            Text("Overview")
+                .font(.system(size: 28, weight: .black, design: .rounded))
+                .foregroundStyle(.white)
+
+            VStack(alignment: .leading, spacing: 0) {
+                Text("Total assets")
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundStyle(Color.white.opacity(0.58))
+                Text(CurrencyFormatter.string(totalAssets, code: currencyCode))
+                    .font(.system(size: 38, weight: .black, design: .rounded))
+                    .foregroundStyle(.white)
+                    .monospacedDigit()
+                    .padding(.top, 4)
+
+                Spacer()
+
+                singleProgressBar(color: Color.bobHex(0x66D9E8), progress: assetProgress)
+                    .frame(height: 38)
+
+                HStack(spacing: 10) {
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(Color.bobHex(0x66D9E8))
+                        .frame(width: 12, height: 12)
+                    Text("Linked")
+                        .font(.system(size: 19, weight: .medium))
+                        .foregroundStyle(.white)
+                }
+            }
+            .padding(22)
+            .frame(height: 230)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: 28, style: .continuous).fill(Color.bobHex(0x18181B)))
+        }
+    }
+
+    private var darkCategorySection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Top categories")
+                .font(.system(size: 24, weight: .black, design: .rounded))
+                .foregroundStyle(.white)
+
+            VStack(spacing: 0) {
+                ForEach(Array(categoryData.prefix(5).enumerated()), id: \.element.category) { idx, item in
+                    HStack(spacing: 14) {
+                        Circle()
+                            .fill(chartPaletteColor(for: idx))
+                            .frame(width: 12, height: 12)
+                        Text(item.category)
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(.white)
+                        Spacer()
+                        Text(CurrencyFormatter.string(item.amount, code: currencyCode))
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundStyle(.white.opacity(0.76))
+                            .monospacedDigit()
+                    }
+                    .padding(.vertical, 14)
+                }
+            }
+            .padding(.horizontal, 18)
+            .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(Color.bobHex(0x18181B)))
+        }
+    }
+
+    private var netCashFlow: Decimal {
+        currentPeriodIncome - currentPeriodExpenses
+    }
+
+    private var totalAssets: Decimal {
+        max(netCashFlow, 0)
+    }
+
+    private var assetProgress: Double {
+        let income = (currentPeriodIncome as NSDecimalNumber).doubleValue
+        guard income > 0 else { return totalAssets > 0 ? 1 : 0.08 }
+        return min(max((totalAssets as NSDecimalNumber).doubleValue / income, 0.08), 1)
+    }
+
+    private var incomeBarValues: [Decimal] {
+        let series = cumulativeSeries(kind: .income)
+        guard !series.isEmpty else { return [0, 0, 0, 0, 0] }
+        let count = min(series.count, 5)
+        return (0..<count).map { idx in
+            let sourceIndex = Int((Double(idx) / Double(max(count - 1, 1))) * Double(series.count - 1))
+            return series[sourceIndex].amount
+        }
+    }
+
+    private func primaryValue(for kind: AnalyticsCardKind) -> String {
+        switch kind {
+        case .spent:
+            return CurrencyFormatter.string(currentPeriodExpenses, code: currencyCode)
+        case .income:
+            return CurrencyFormatter.string(currentPeriodIncome, code: currencyCode)
+        case .netCashFlow:
+            return CurrencyFormatter.string(abs(netCashFlow as NSDecimalNumber as Decimal), code: currencyCode)
+        case .assets:
+            return CurrencyFormatter.string(totalAssets, code: currencyCode)
+        case .savingsRate:
+            return currentPeriodIncome > 0 ? String(format: "%.0f%%", savingsRatePct) : "0%"
+        }
+    }
+
+    private func cumulativeSeries(kind: TransactionKind) -> [(day: Int, amount: Decimal)] {
+        let cal = Calendar.current
+        let bounds = boundsForSelectedPeriod
+        let transactions = allExpenses.filter { $0.kind == kind && $0.date >= bounds.start && $0.date < bounds.end }
+        let dayCount = max(cal.dateComponents([.day], from: bounds.start, to: bounds.end).day ?? 1, 1)
+        var dailyTotals: [Int: Decimal] = [:]
+
+        for tx in transactions {
+            let day = min(max((cal.dateComponents([.day], from: bounds.start, to: tx.date).day ?? 0) + 1, 1), dayCount)
+            dailyTotals[day, default: 0] += tx.amount
+        }
+
+        var cumulative: Decimal = 0
+        return (1...dayCount).map { day in
+            cumulative += dailyTotals[day] ?? 0
+            return (day: day, amount: cumulative)
+        }
+    }
+
+    private var boundsForSelectedPeriod: (start: Date, end: Date) {
+        let cal = Calendar.current
+        let month = MonthSummary.currentMonthBounds()
+        switch selectedPeriod {
+        case .currentMonth:
+            return month
+        case .lastMonth:
+            let start = cal.date(byAdding: .month, value: -1, to: month.start) ?? month.start
+            return (start, month.start)
+        case .last3Months:
+            let start = cal.date(byAdding: .month, value: -3, to: Date()) ?? month.start
+            return (cal.startOfDay(for: start), Date())
+        case .last6Months:
+            let start = cal.date(byAdding: .month, value: -6, to: Date()) ?? month.start
+            return (cal.startOfDay(for: start), Date())
+        case .year:
+            let comps = cal.dateComponents([.year], from: Date())
+            let start = cal.date(from: comps) ?? month.start
+            let end = cal.date(byAdding: .year, value: 1, to: start) ?? Date()
+            return (start, end)
+        }
+    }
+
+    private var currentDayInSelectedPeriod: Int {
+        let cal = Calendar.current
+        let bounds = boundsForSelectedPeriod
+        let totalDays = max(cal.dateComponents([.day], from: bounds.start, to: bounds.end).day ?? 1, 1)
+        guard Date() >= bounds.start && Date() < bounds.end else { return totalDays }
+        return min(max((cal.dateComponents([.day], from: bounds.start, to: Date()).day ?? 0) + 1, 1), totalDays)
+    }
+
+    private func darkLineChart(data: [(day: Int, amount: Decimal)], color: Color, dashedAfterCurrentDay: Bool) -> some View {
+        let maxAmount = max(((data.map(\.amount).max() ?? Decimal(1)) as NSDecimalNumber).doubleValue, 1)
+        let currentDay = dashedAfterCurrentDay ? currentDayInSelectedPeriod : data.count
+        let actual = data.filter { $0.day <= currentDay }
+        let projected = projectedSeries(from: data, currentDay: currentDay)
+
+        return VStack(spacing: 8) {
+            GeometryReader { geo in
+                let width = geo.size.width
+                let height = geo.size.height
+
+                ZStack {
+                    if projected.count > 1 {
+                        analyticsLinePath(data: projected, width: width, height: height, maxAmount: maxAmount)
+                            .stroke(Color.white.opacity(0.18), style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round, dash: [5, 7]))
+                    }
+
+                    if actual.count > 1 {
+                        analyticsLinePath(data: actual, width: width, height: height, maxAmount: maxAmount)
+                            .stroke(color, style: StrokeStyle(lineWidth: 3.5, lineCap: .round, lineJoin: .round))
+
+                        if let last = actual.last {
+                            Circle()
+                                .fill(color)
+                                .frame(width: 10, height: 10)
+                                .position(analyticsPoint(last, width: width, height: height, maxAmount: maxAmount, count: max(data.count, 2)))
+                        }
+                    }
+                }
+            }
+
+            HStack {
+                ForEach(axisLabels(for: max(data.count, 2)), id: \.self) { day in
+                    Text("\(day)")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(Color.white.opacity(0.54))
+                        .frame(maxWidth: .infinity, alignment: day == 1 ? .leading : day == max(data.count, 2) ? .trailing : .center)
+                }
+            }
+        }
+    }
+
+    private func projectedSeries(from data: [(day: Int, amount: Decimal)], currentDay: Int) -> [(day: Int, amount: Decimal)] {
+        guard !data.isEmpty else { return [] }
+        let totalDays = data.count
+        let currentIndex = min(max(currentDay - 1, 0), totalDays - 1)
+        let currentAmount = data[currentIndex].amount
+        guard currentDay < totalDays else { return data }
+
+        let projectedTotal = currentAmount / Decimal(max(currentDay, 1)) * Decimal(totalDays)
+        return (1...totalDays).map { day in
+            if day <= currentDay { return data[day - 1] }
+            let progress = Decimal(day - currentDay) / Decimal(max(totalDays - currentDay, 1))
+            return (day: day, amount: currentAmount + ((projectedTotal - currentAmount) * progress))
+        }
+    }
+
+    private func analyticsLinePath(data: [(day: Int, amount: Decimal)], width: CGFloat, height: CGFloat, maxAmount: Double) -> Path {
+        var path = Path()
+        let count = max(cumulativeSeries(kind: .expense).count, data.count, 2)
+        for (index, item) in data.enumerated() {
+            let point = analyticsPoint(item, width: width, height: height, maxAmount: maxAmount, count: count)
+            index == 0 ? path.move(to: point) : path.addLine(to: point)
+        }
+        return path
+    }
+
+    private func analyticsPoint(_ item: (day: Int, amount: Decimal), width: CGFloat, height: CGFloat, maxAmount: Double, count: Int) -> CGPoint {
+        let x = CGFloat(item.day - 1) / CGFloat(max(count - 1, 1)) * width
+        let value = (item.amount as NSDecimalNumber).doubleValue
+        let normalized = min(max(value / max(maxAmount, 1), 0), 1)
+        let y = height - CGFloat(normalized) * height * 0.72 - height * 0.14
+        return CGPoint(x: x, y: y)
+    }
+
+    private func axisLabels(for days: Int) -> [Int] {
+        let labels = [1, 6, 11, 16, 21, 26, days]
+        return labels.reduce(into: [Int]()) { result, day in
+            let clamped = min(max(day, 1), days)
+            if result.last != clamped { result.append(clamped) }
+        }
+    }
+
+    private func miniVerticalBars(values: [Decimal]) -> some View {
+        let maxValue = max(((values.max() ?? Decimal(1)) as NSDecimalNumber).doubleValue, 1)
+        return HStack(alignment: .bottom, spacing: 26) {
+            ForEach(Array(values.enumerated()), id: \.offset) { idx, value in
+                let ratio = (value as NSDecimalNumber).doubleValue / maxValue
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .fill(idx == 0 ? Color.white.opacity(0.42) : Color.white.opacity(0.07))
+                    .frame(width: 10, height: max(CGFloat(ratio) * 62, 8))
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var cashFlowBars: some View {
+        let income = max((currentPeriodIncome as NSDecimalNumber).doubleValue, 1)
+        let expenseRatio = min((currentPeriodExpenses as NSDecimalNumber).doubleValue / income, 1)
+        return VStack(spacing: 20) {
+            singleProgressBar(color: Color.bobGreen.opacity(0.92), progress: min(max((netCashFlow as NSDecimalNumber).doubleValue / income, 0.08), 1))
+                .frame(height: 12)
+            singleProgressBar(color: Color.bobDebit.opacity(0.95), progress: max(expenseRatio, 0.08))
+                .frame(height: 12)
+        }
+    }
+
+    private func singleProgressBar(color: Color, progress: Double) -> some View {
+        GeometryReader { geo in
+            ZStack(alignment: .leading) {
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .fill(Color.white.opacity(0.06))
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .fill(color)
+                    .frame(width: geo.size.width * min(max(progress, 0), 1))
+            }
+        }
     }
 
     // MARK: – Spending streak + 6-month trend card
@@ -1069,6 +1540,24 @@ struct AnalyticsView: View {
 }
 
 // MARK: – Chart display type
+
+private enum AnalyticsCardKind {
+    case spent
+    case income
+    case netCashFlow
+    case assets
+    case savingsRate
+
+    var title: String {
+        switch self {
+        case .spent: return "Spent"
+        case .income: return "Income"
+        case .netCashFlow: return "Net cash flow"
+        case .assets: return "Total assets"
+        case .savingsRate: return "Savings rate"
+        }
+    }
+}
 
 enum ChartDisplayType: String, CaseIterable {
     case donut, pie, bars

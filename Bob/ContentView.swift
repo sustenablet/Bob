@@ -70,7 +70,7 @@ struct ContentView: View {
         case .recurring:
             RecurringTransactionsView()
         case .spending:
-            SpendingView()
+            AnalyticsView()
         case .more:
             MoreView()
         }
