@@ -13,6 +13,7 @@ struct HomeView: View {
     @Query(sort: \BudgetSettings.monthlyBudget) private var settingsList: [BudgetSettings]
     @Query(sort: \Goal.createdAt, order: .reverse) private var goals: [Goal]
     @Query(sort: \RecurringTransaction.nextDueDate) private var recurrings: [RecurringTransaction]
+    @Query(sort: \JobIncomeProfile.createdAt) private var jobProfiles: [JobIncomeProfile]
 
     @AppStorage("userName") private var userName: String = ""
     @State private var editingExpense: Expense?
@@ -22,6 +23,7 @@ struct HomeView: View {
     // MARK: – Core data
 
     private var settings: BudgetSettings? { settingsList.first }
+    private var jobProfile: JobIncomeProfile? { jobProfiles.first }
     private var currencyCode: String { settings?.currencyCode ?? "USD" }
     private var monthlyBudget: Decimal { settings?.monthlyBudget ?? 0 }
 
@@ -37,6 +39,29 @@ struct HomeView: View {
 
     private var monthIncome: Decimal {
         monthTransactions.filter { $0.kind == .income }.reduce(.zero) { $0 + $1.amount }
+    }
+    private var expectedMonthlyIncome: Decimal {
+        guard let profile = jobProfile, profile.hourlyRate > 0 else { return 0 }
+        let calendar = Calendar.current
+        let bounds = MonthSummary.currentMonthBounds()
+        var date = bounds.start
+        var totalHours: Double = 0
+        while date <= bounds.end {
+            let weekday = calendar.component(.weekday, from: date)
+            switch weekday {
+            case 1: if profile.sundayEnabled { totalHours += profile.sundayHours }
+            case 2: if profile.mondayEnabled { totalHours += profile.mondayHours }
+            case 3: if profile.tuesdayEnabled { totalHours += profile.tuesdayHours }
+            case 4: if profile.wednesdayEnabled { totalHours += profile.wednesdayHours }
+            case 5: if profile.thursdayEnabled { totalHours += profile.thursdayHours }
+            case 6: if profile.fridayEnabled { totalHours += profile.fridayHours }
+            case 7: if profile.saturdayEnabled { totalHours += profile.saturdayHours }
+            default: break
+            }
+            guard let next = calendar.date(byAdding: .day, value: 1, to: date) else { break }
+            date = next
+        }
+        return profile.hourlyRate * Decimal(totalHours)
     }
 
     private var lastMonthExpensesTotal: Decimal {
@@ -89,7 +114,8 @@ struct HomeView: View {
     }
 
     private var savingsRate: Double {
-        let inc = (monthIncome as NSDecimalNumber).doubleValue
+        let effectiveIncome = monthIncome > 0 ? monthIncome : expectedMonthlyIncome
+        let inc = (effectiveIncome as NSDecimalNumber).doubleValue
         guard inc > 0 else { return 0 }
         let exp = (monthExpensesTotal as NSDecimalNumber).doubleValue
         return max(((inc - exp) / inc) * 100, 0)
@@ -385,9 +411,10 @@ struct HomeView: View {
     }
 
     private var heroAmount: Decimal {
+        let effectiveIncome = monthIncome > 0 ? monthIncome : expectedMonthlyIncome
         switch heroCardContext {
         case .cashflow:
-            return monthIncome > 0 ? (monthIncome - monthExpensesTotal) : monthExpensesTotal
+            return effectiveIncome > 0 ? (effectiveIncome - monthExpensesTotal) : monthExpensesTotal
         case .budget:
             return monthlyBudget - monthExpensesTotal
         case .goals:
@@ -398,7 +425,9 @@ struct HomeView: View {
     private var heroTitle: String {
         switch heroCardContext {
         case .cashflow:
-            return monthIncome > 0 ? "Available this month" : "Spent this month"
+            if monthIncome > 0 { return "Available this month" }
+            if expectedMonthlyIncome > 0 { return "Expected available" }
+            return "Spent this month"
         case .budget:
             return "Budget remaining"
         case .goals:
@@ -409,6 +438,9 @@ struct HomeView: View {
     private var heroSecondaryText: String? {
         switch heroCardContext {
         case .cashflow:
+            if monthIncome <= 0, expectedMonthlyIncome > 0 {
+                return "projected"
+            }
             if monthIncome > 0, lastMonthExpensesTotal > 0 {
                 return momIsPositive ? "ahead" : "tight"
             }
@@ -430,6 +462,16 @@ struct HomeView: View {
     }
 
     private var monthlyInsightLine: String {
+        if expectedMonthlyIncome > 0 {
+            if monthIncome <= 0 {
+                return "Expected income: \(CurrencyFormatter.string(expectedMonthlyIncome, code: currencyCode))."
+            }
+            let diff = monthIncome - expectedMonthlyIncome
+            if diff < 0 {
+                return "Income is \(CurrencyFormatter.string(abs(diff), code: currencyCode)) below your expected schedule."
+            }
+        }
+
         if monthlyBudget > 0 {
             let remaining = monthlyBudget - monthExpensesTotal
             if remaining < 0 {
@@ -1174,7 +1216,12 @@ struct HomeView: View {
 
                     Spacer(minLength: 4)
 
-                    Text(CurrencyFormatter.compact(monthIncome > 0 ? monthIncome : monthlyBudget, code: currencyCode))
+                    Text(
+                        CurrencyFormatter.compact(
+                            monthIncome > 0 ? monthIncome : (expectedMonthlyIncome > 0 ? expectedMonthlyIncome : monthlyBudget),
+                            code: currencyCode
+                        )
+                    )
                         .font(.system(size: 15, weight: .bold))
                         .foregroundStyle(Color.bobInk2)
                         .monospacedDigit()
