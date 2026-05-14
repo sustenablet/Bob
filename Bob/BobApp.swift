@@ -39,6 +39,9 @@ struct BobApp: App {
                             context: sharedModelContainer.mainContext
                         )
                     }
+                    .task {
+                        await verifySupabaseConfiguration()
+                    }
             } else {
                 OnboardingView(isPresented: $showOnboarding)
             }
@@ -89,5 +92,15 @@ struct BobApp: App {
                 )
             )
         }
+    }
+
+    @MainActor
+    private func verifySupabaseConfiguration() async {
+#if DEBUG
+        guard SupabaseConfig.isConfigured else {
+            print("⚠️ Supabase not configured. Add SUPABASE_URL and SUPABASE_ANON_KEY in Info.plist.")
+            return
+        }
+#endif
     }
 }
