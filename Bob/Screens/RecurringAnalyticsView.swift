@@ -55,7 +55,7 @@ struct RecurringAnalyticsView: View {
         var dict: [String: (symbol: String, amount: Decimal)] = [:]
         for r in activeExpenses {
             let key = r.category?.name ?? "Uncategorized"
-            let sym = r.category?.sfSymbol ?? "circle.dashed"
+            let sym = r.iconSymbol ?? r.category?.sfSymbol ?? "circle.dashed"
             let ex = dict[key]
             dict[key] = (ex?.symbol ?? sym, (ex?.amount ?? 0) + monthly(r))
         }

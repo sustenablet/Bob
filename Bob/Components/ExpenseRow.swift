@@ -10,7 +10,7 @@ struct ExpenseRow: View {
     var body: some View {
         HStack(alignment: .center, spacing: Spacing.m) {
             // Category icon
-            Image(systemName: expense.category?.sfSymbol ?? "circle.dashed")
+            Image(systemName: expense.iconSymbol ?? expense.category?.sfSymbol ?? "circle.dashed")
                 .font(.system(size: 15, weight: .regular))
                 .foregroundStyle(isIncome ? Color.bobAccent : Color.bobInk3)
                 .frame(width: 32, height: 32)

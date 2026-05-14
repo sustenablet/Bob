@@ -44,7 +44,7 @@ struct AnalyticsView: View {
         var dict: [String: (amount: Decimal, symbol: String)] = [:]
         for expense in filteredTransactions {
             let cat = expense.category?.name ?? "Other"
-            let sym = expense.category?.sfSymbol ?? "circle.dashed"
+            let sym = expense.iconSymbol ?? expense.category?.sfSymbol ?? "circle.dashed"
             let existing = dict[cat]
             dict[cat] = ((existing?.amount ?? 0) + expense.amount, existing?.symbol ?? sym)
         }
@@ -1407,7 +1407,7 @@ struct AnalyticsView: View {
                         HStack(spacing: 12) {
                             ZStack {
                                 RoundedRectangle(cornerRadius: 8).fill(Color.bobDebit.opacity(0.1)).frame(width: 36, height: 36)
-                                Image(systemName: tx.category?.sfSymbol ?? "circle.dashed")
+                                Image(systemName: tx.iconSymbol ?? tx.category?.sfSymbol ?? "circle.dashed")
                                     .font(.system(size: 14, weight: .medium)).foregroundStyle(Color.bobDebit)
                             }
                             VStack(alignment: .leading, spacing: 2) {

@@ -432,7 +432,7 @@ struct RecurringTransactionsView: View {
         return HStack(spacing: 12) {
             ZStack {
                 Circle().fill(color.opacity(0.18)).frame(width: 36, height: 36)
-                Image(systemName: isIncome ? "arrow.down.circle.fill" : (r.category?.sfSymbol ?? "arrow.up.circle.fill"))
+                Image(systemName: isIncome ? (r.iconSymbol ?? "arrow.down.circle.fill") : (r.iconSymbol ?? r.category?.sfSymbol ?? "arrow.up.circle.fill"))
                     .font(.system(size: 16)).foregroundStyle(color)
             }
 
@@ -737,7 +737,7 @@ struct RecurringTransactionsView: View {
                 Circle()
                     .fill(color.opacity(0.18))
                     .frame(width: 46, height: 46)
-                Image(systemName: isIncome ? "dollarsign" : (r.category?.sfSymbol ?? "arrow.up"))
+                Image(systemName: isIncome ? (r.iconSymbol ?? "dollarsign") : (r.iconSymbol ?? r.category?.sfSymbol ?? "arrow.up"))
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundStyle(color)
             }

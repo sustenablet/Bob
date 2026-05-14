@@ -162,7 +162,7 @@ struct RecurringCalendarView: View {
                     Circle()
                         .fill(first.kind == .income ? Color.bobAccent : Color.bobDebit)
                         .frame(width: 22, height: 22)
-                    Image(systemName: first.kind == .income ? "dollarsign" : (first.category?.sfSymbol ?? "arrow.up"))
+                    Image(systemName: first.kind == .income ? (first.iconSymbol ?? "dollarsign") : (first.iconSymbol ?? first.category?.sfSymbol ?? "arrow.up"))
                         .font(.system(size: 10, weight: .bold))
                         .foregroundStyle(.black.opacity(0.8))
                 }

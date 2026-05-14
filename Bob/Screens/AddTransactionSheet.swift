@@ -22,6 +22,9 @@ struct AddTransactionSheet: View {
     @State private var merchant: String = ""
     @State private var isKeypadVisible = true
     @State private var showDetails = false
+    @State private var showIconPicker = false
+    @State private var selectedIconSymbol = "arrow.up.circle"
+    @State private var showSavePreview = false
     @FocusState private var noteFieldFocused: Bool
     @FocusState private var merchantFieldFocused: Bool
 
@@ -31,6 +34,11 @@ struct AddTransactionSheet: View {
     private var visibleCategories: [ExpenseCategory] { allCategories.filter { $0.kind == kind } }
     private var filteredTemplates: [QuickAddTemplate] { quickTemplates.filter { $0.kind == kind } }
     private var accentColor: Color { kind == .income ? Color.bobGreen : Color.bobAccent }
+    private var iconOptions: [String] {
+        kind == .income
+        ? ["arrow.down.circle","dollarsign.circle","banknote","briefcase","gift","building.columns","creditcard","star","chart.line.uptrend.xyaxis","wallet.pass","person.crop.circle","circle.dashed"]
+        : ["arrow.up.circle","cart","fork.knife","car","house","bolt","fuelpump","cross.case","bag","airplane","gamecontroller","doc.text","wrench.adjustable","pawprint","scissors","circle.dashed"]
+    }
     private var saveLabel: String {
         if isEditing { return "Save Changes" }
         return kind == .income ? "Add Income" : "Add Expense"
@@ -96,6 +104,23 @@ struct AddTransactionSheet: View {
                 withAnimation(.spring(response: 0.4, dampingFraction: 0.88)) { isKeypadVisible = false }
             }
         }
+        .sheet(isPresented: $showIconPicker) {
+            IconPickerSheet(
+                title: "Choose icon",
+                symbols: iconOptions,
+                selectedSymbol: $selectedIconSymbol
+            )
+        }
+        .confirmationDialog(
+            isEditing ? "Confirm changes" : "Confirm transaction",
+            isPresented: $showSavePreview,
+            titleVisibility: .visible
+        ) {
+            Button(isEditing ? "Save now" : "Add now") { performSave() }
+            Button("Back", role: .cancel) { }
+        } message: {
+            Text(savePreviewText)
+        }
     }
 
     // MARK: – Top bar
@@ -109,9 +134,11 @@ struct AddTransactionSheet: View {
 
             HStack {
                 Spacer()
-                Button("Cancel") { dismiss() }
-                    .font(.system(size: 15))
-                    .foregroundStyle(Color.bobInk2)
+                Button { dismiss() } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 20))
+                        .foregroundStyle(Color.bobInk2)
+                }
                     .padding(.trailing, 20)
             }
         }
@@ -372,10 +399,15 @@ struct AddTransactionSheet: View {
 
                 // Merchant / Source
                 HStack(spacing: 12) {
-                    Image(systemName: kind == .income ? "person.fill" : "storefront")
-                        .font(.system(size: 14))
-                        .foregroundStyle(Color.bobInk2)
-                        .frame(width: 22)
+                    Button {
+                        showIconPicker = true
+                    } label: {
+                        Image(systemName: selectedIconSymbol)
+                            .font(.system(size: 14))
+                            .foregroundStyle(accentColor)
+                            .frame(width: 22)
+                    }
+                    .buttonStyle(.plain)
                     TextField(
                         kind == .income ? "Source (optional)" : "Merchant (optional)",
                         text: $merchant
@@ -451,7 +483,7 @@ struct AddTransactionSheet: View {
                 .fill(Color.white.opacity(0.06))
                 .frame(height: 1)
 
-            Button { save() } label: {
+            Button { showSavePreview = true } label: {
                 Text(saveLabel)
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(canSave ? .white : Color.bobInk2)
@@ -559,6 +591,7 @@ struct AddTransactionSheet: View {
         isKeypadVisible = expenseToEdit == nil
         guard let expense = expenseToEdit else {
             selectedCategory = visibleCategories.first
+            selectedIconSymbol = kind == .income ? "arrow.down.circle" : "arrow.up.circle"
             return
         }
         kind = expense.kind
@@ -567,10 +600,28 @@ struct AddTransactionSheet: View {
         note = expense.note ?? ""
         merchant = expense.merchant ?? ""
         selectedCategory = expense.category
+        selectedIconSymbol = expense.iconSymbol ?? expense.category?.sfSymbol ?? (kind == .income ? "arrow.down.circle" : "arrow.up.circle")
         showDetails = !(note.isEmpty && merchant.isEmpty && Calendar.current.isDateInToday(date))
     }
 
+    private var savePreviewText: String {
+        let title = merchant.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? (selectedCategory?.name ?? (kind == .income ? "Income" : "Expense"))
+            : merchant.trimmingCharacters(in: .whitespacesAndNewlines)
+        let noteText = note.trimmingCharacters(in: .whitespacesAndNewlines)
+        let amountText = CurrencyFormatter.string(amount, code: currencyCode)
+        let dateText = DateFormatter.localizedString(from: date, dateStyle: .medium, timeStyle: .none)
+        if noteText.isEmpty {
+            return "\(kind == .income ? "Income" : "Expense"): \(title)\nAmount: \(amountText)\nDate: \(dateText)"
+        }
+        return "\(kind == .income ? "Income" : "Expense"): \(title)\nAmount: \(amountText)\nDate: \(dateText)\nNote: \(noteText)"
+    }
+
     private func save() {
+        showSavePreview = true
+    }
+
+    private func performSave() {
         guard canSave else { return }
         HapticManager.success()
         let trimNote     = note.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -581,6 +632,7 @@ struct AddTransactionSheet: View {
             expense.date = date
             expense.note = trimNote.isEmpty ? nil : trimNote
             expense.merchant = trimMerchant.isEmpty ? nil : trimMerchant
+            expense.iconSymbol = selectedIconSymbol
             expense.category = selectedCategory
             expense.kind = kind
         } else {
@@ -589,6 +641,7 @@ struct AddTransactionSheet: View {
                 date: date,
                 note: trimNote.isEmpty ? nil : trimNote,
                 merchant: trimMerchant.isEmpty ? nil : trimMerchant,
+                iconSymbol: selectedIconSymbol,
                 category: selectedCategory,
                 kind: kind
             ))

@@ -106,7 +106,7 @@ struct HomeView: View {
         var dict: [String: (symbol: String, amount: Decimal)] = [:]
         for tx in monthTransactions where tx.kind == .expense {
             let cat = tx.category?.name ?? "Other"
-            let sym = tx.category?.sfSymbol ?? "circle.dashed"
+            let sym = tx.iconSymbol ?? tx.category?.sfSymbol ?? "circle.dashed"
             let ex = dict[cat]
             dict[cat] = (ex?.symbol ?? sym, (ex?.amount ?? 0) + tx.amount)
         }
@@ -1131,7 +1131,7 @@ struct HomeView: View {
                 Circle()
                     .fill(isIncome ? Color.bobGreen : Color.bobHex(0x7AD744))
                     .frame(width: 44, height: 44)
-                Image(systemName: tx.category?.sfSymbol ?? "circle.dashed")
+                Image(systemName: tx.iconSymbol ?? tx.category?.sfSymbol ?? "circle.dashed")
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundStyle(.white)
             }

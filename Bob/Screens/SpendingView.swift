@@ -147,7 +147,7 @@ struct SpendingView: View {
         var dict: [String: (symbol: String, amount: Decimal)] = [:]
         for tx in expenses(in: seg) {
             let cat = tx.category?.name ?? "Other"
-            let sym = tx.category?.sfSymbol ?? "circle.dashed"
+            let sym = tx.iconSymbol ?? tx.category?.sfSymbol ?? "circle.dashed"
             let ex = dict[cat]
             dict[cat] = (ex?.symbol ?? sym, (ex?.amount ?? 0) + tx.amount)
         }
@@ -481,7 +481,7 @@ struct SpendingView: View {
                 Circle()
                     .fill(isIncome ? Color.bobGreen.opacity(0.18) : Color.bobDebit.opacity(0.15))
                     .frame(width: 40, height: 40)
-                Image(systemName: tx.category?.sfSymbol ?? "circle.dashed")
+                Image(systemName: tx.iconSymbol ?? tx.category?.sfSymbol ?? "circle.dashed")
                     .font(.system(size: 15, weight: .medium))
                     .foregroundStyle(isIncome ? Color.bobGreen : Color.bobDebit)
             }

@@ -22,6 +22,9 @@ struct AddRecurringSheet: View {
     @State private var startDate: Date = Date()
     @State private var selectedCategory: ExpenseCategory?
     @State private var isKeypadVisible = true
+    @State private var selectedIconSymbol = "arrow.up.circle"
+    @State private var showIconPicker = false
+    @State private var showSavePreview = false
     @FocusState private var nameFieldFocused: Bool
 
     var isEditing: Bool { recurringToEdit != nil }
@@ -30,6 +33,11 @@ struct AddRecurringSheet: View {
     private var accentColor: Color { kind == .income ? Color.bobGreen : Color.bobAccent }
     private var visibleCategories: [ExpenseCategory] { allCategories.filter { $0.kind == kindAsTransaction } }
     private var kindAsTransaction: TransactionKind { kind == .income ? .income : .expense }
+    private var iconOptions: [String] {
+        kind == .income
+        ? ["arrow.down.circle","dollarsign.circle","banknote","briefcase","gift","building.columns","creditcard","star","chart.line.uptrend.xyaxis","wallet.pass","person.crop.circle","circle.dashed"]
+        : ["arrow.up.circle","cart","fork.knife","car","house","bolt","fuelpump","cross.case","bag","airplane","gamecontroller","doc.text","wrench.adjustable","pawprint","scissors","circle.dashed"]
+    }
     private var frequencyDisplayString: String {
         switch frequency {
         case .weekly:   return "week"
@@ -93,6 +101,23 @@ struct AddRecurringSheet: View {
                 }
             }
         }
+        .sheet(isPresented: $showIconPicker) {
+            IconPickerSheet(
+                title: "Choose icon",
+                symbols: iconOptions,
+                selectedSymbol: $selectedIconSymbol
+            )
+        }
+        .confirmationDialog(
+            isEditing ? "Confirm changes" : "Confirm recurring",
+            isPresented: $showSavePreview,
+            titleVisibility: .visible
+        ) {
+            Button(isEditing ? "Save now" : "Add now") { performSave() }
+            Button("Back", role: .cancel) { }
+        } message: {
+            Text(savePreviewText)
+        }
     }
 
     // MARK: – Top bar
@@ -106,9 +131,11 @@ struct AddRecurringSheet: View {
 
             HStack {
                 Spacer()
-                Button("Cancel") { dismiss() }
-                    .font(.system(size: 15))
-                    .foregroundStyle(Color.bobInk2)
+                Button { dismiss() } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 20))
+                        .foregroundStyle(Color.bobInk2)
+                }
                     .padding(.trailing, 20)
             }
         }
@@ -153,11 +180,16 @@ struct AddRecurringSheet: View {
         VStack(spacing: 0) {
             // Name field row
             HStack(spacing: 12) {
-                Image(systemName: kind == .income ? "arrow.down.circle" : "arrow.up.circle")
-                    .font(.system(size: 18, weight: .medium))
-                    .foregroundStyle(accentColor)
-                    .frame(width: 28)
-                    .animation(.easeOut(duration: 0.2), value: kind)
+                Button {
+                    showIconPicker = true
+                } label: {
+                    Image(systemName: selectedIconSymbol)
+                        .font(.system(size: 18, weight: .medium))
+                        .foregroundStyle(accentColor)
+                        .frame(width: 28)
+                }
+                .buttonStyle(.plain)
+                .animation(.easeOut(duration: 0.2), value: kind)
 
                 TextField(
                     kind == .income ? "e.g. Salary, Rent income" : "e.g. Netflix, Rent, Gym",
@@ -474,7 +506,7 @@ struct AddRecurringSheet: View {
                 .fill(Color.white.opacity(0.06))
                 .frame(height: 1)
 
-            Button { save() } label: {
+            Button { showSavePreview = true } label: {
                 HStack(spacing: 8) {
                     if canSave && amount > 0 {
                         Text(isEditing ? "Save Changes" : (kind == .income ? "Add Income" : "Add Expense"))
@@ -613,6 +645,7 @@ struct AddRecurringSheet: View {
         isKeypadVisible = recurringToEdit == nil
         guard let r = recurringToEdit else {
             selectedCategory = visibleCategories.first
+            selectedIconSymbol = kind == .income ? "arrow.down.circle" : "arrow.up.circle"
             return
         }
         name = r.name
@@ -621,9 +654,21 @@ struct AddRecurringSheet: View {
         frequency = r.frequency
         startDate = r.startDate
         selectedCategory = r.category
+        selectedIconSymbol = r.iconSymbol ?? r.category?.sfSymbol ?? (r.kind == .income ? "arrow.down.circle" : "arrow.up.circle")
+    }
+
+    private var savePreviewText: String {
+        let trimName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let amountText = CurrencyFormatter.string(amount, code: currencyCode)
+        let dateText = DateFormatter.localizedString(from: startDate, dateStyle: .medium, timeStyle: .none)
+        return "\(kind == .income ? "Recurring income" : "Recurring expense"): \(trimName)\nAmount: \(amountText) / \(frequencyDisplayString)\nStart date: \(dateText)"
     }
 
     private func save() {
+        showSavePreview = true
+    }
+
+    private func performSave() {
         guard canSave else { return }
         HapticManager.success()
         let trimName = name.trimmingCharacters(in: .whitespaces)
@@ -635,6 +680,7 @@ struct AddRecurringSheet: View {
             existing.frequency = frequency
             existing.startDate = startDate
             existing.nextDueDate = RecurringTransaction.calculateNextDueDate(from: startDate, frequency: frequency)
+            existing.iconSymbol = selectedIconSymbol
             existing.category = selectedCategory
         } else {
             modelContext.insert(RecurringTransaction(
@@ -643,6 +689,7 @@ struct AddRecurringSheet: View {
                 kind: kind,
                 frequency: frequency,
                 startDate: startDate,
+                iconSymbol: selectedIconSymbol,
                 category: selectedCategory
             ))
         }

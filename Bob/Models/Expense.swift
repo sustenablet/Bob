@@ -8,6 +8,7 @@ final class Expense {
     var date: Date = Date()
     var note: String?
     var merchant: String?
+    var iconSymbol: String?
     var category: ExpenseCategory?
     var createdAt: Date = Date()
     var kindRaw: String = TransactionKind.expense.rawValue
@@ -22,6 +23,7 @@ final class Expense {
         date: Date = Date(),
         note: String? = nil,
         merchant: String? = nil,
+        iconSymbol: String? = nil,
         category: ExpenseCategory? = nil,
         kind: TransactionKind = .expense
     ) {
@@ -30,6 +32,7 @@ final class Expense {
         self.date = date
         self.note = note
         self.merchant = merchant
+        self.iconSymbol = iconSymbol
         self.category = category
         self.createdAt = Date()
         self.kindRaw = kind.rawValue

@@ -22,6 +22,7 @@ final class RecurringTransaction {
     var frequency: RecurringFrequency
     var startDate: Date
     var nextDueDate: Date
+    var iconSymbol: String?
     var category: ExpenseCategory?
     var isActive: Bool = true
     var createdAt: Date = Date()
@@ -32,6 +33,7 @@ final class RecurringTransaction {
         kind: RecurringKind,
         frequency: RecurringFrequency,
         startDate: Date = Date(),
+        iconSymbol: String? = nil,
         category: ExpenseCategory? = nil
     ) {
         self.id = UUID()
@@ -41,6 +43,7 @@ final class RecurringTransaction {
         self.frequency = frequency
         self.startDate = startDate
         self.nextDueDate = Self.calculateNextDueDate(from: startDate, frequency: frequency)
+        self.iconSymbol = iconSymbol
         self.category = category
         self.isActive = true
         self.createdAt = Date()
