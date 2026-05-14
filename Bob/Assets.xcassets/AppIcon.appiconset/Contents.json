@@ -3,6 +3,7 @@
     {
       "idiom" : "universal",
       "platform" : "ios",
+      "filename" : "bobfavicon.png",
       "size" : "1024x1024"
     },
     {
@@ -14,6 +15,7 @@
       ],
       "idiom" : "universal",
       "platform" : "ios",
+      "filename" : "bobfavicon.png",
       "size" : "1024x1024"
     },
     {
@@ -25,6 +27,7 @@
       ],
       "idiom" : "universal",
       "platform" : "ios",
+      "filename" : "bobfavicon.png",
       "size" : "1024x1024"
     }
   ],
