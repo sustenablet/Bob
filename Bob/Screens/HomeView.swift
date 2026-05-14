@@ -15,10 +15,8 @@ struct HomeView: View {
     @Query(sort: \RecurringTransaction.nextDueDate) private var recurrings: [RecurringTransaction]
 
     @AppStorage("userName") private var userName: String = ""
-    @AppStorage("petName") private var petName: String = "Buddy"
     @State private var editingExpense: Expense?
     @State private var isAddingTransaction = false
-    @State private var showingPetDetail = false
     @State private var showAllTransactions = false
 
     // MARK: – Core data
@@ -155,12 +153,6 @@ struct HomeView: View {
         .sheet(item: $editingExpense) { expense in
             AddTransactionSheet(currencyCode: currencyCode, expenseToEdit: expense)
         }
-        .sheet(isPresented: $showingPetDetail) {
-            PetDetailView(
-                score: petScore,
-                petName: petName
-            )
-        }
         .sheet(isPresented: $showAllTransactions) {
             NavigationStack {
                 TransactionsListView()
@@ -259,16 +251,7 @@ struct HomeView: View {
 
     private var topControlRow: some View {
         HStack(spacing: 12) {
-            Button { showingPetDetail = true } label: {
-                ZStack(alignment: .topTrailing) {
-                    MascotCharacterView(
-                        state: petScore.state,
-                        size: 34
-                    )
-                    .frame(width: 46, height: 46)
-                }
-                .glassEffect(in: Circle())
-            }
+            compactHeroIcon(systemName: "gearshape", action: { onSwitchTab?(.more) })
             .buttonStyle(.plain)
 
             Button { showAllTransactions = true } label: {
@@ -324,11 +307,6 @@ struct HomeView: View {
                 action: { showAllTransactions = true }
             )
             dashboardShortcut(
-                icon: "sparkles",
-                label: "Companion",
-                action: { showingPetDetail = true }
-            )
-            dashboardShortcut(
                 icon: "target",
                 label: "Goals",
                 action: { onSwitchTab?(.more) }
@@ -360,77 +338,49 @@ struct HomeView: View {
     }
 
     private var dashboardPromoCard: some View {
-        Button { showingPetDetail = true } label: {
-            HStack(spacing: 18) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("\(petName) is watching your money")
-                        .font(.system(size: 17, weight: .bold))
-                        .foregroundStyle(Color.bobInk)
-                        .multilineTextAlignment(.leading)
-                    Text(companionStatusLine)
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(Color.bobInk2)
-                        .multilineTextAlignment(.leading)
-                        .lineLimit(3)
-                }
-
-                Spacer(minLength: 8)
-
-                ZStack(alignment: .topTrailing) {
-                    RoundedRectangle(cornerRadius: 26, style: .continuous)
-                        .fill(Color.bobSurface2.opacity(0.75))
-                        .frame(width: 96, height: 96)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 26, style: .continuous)
-                                .stroke(Color.bobHairline, lineWidth: 1)
-                        )
-                    MascotCharacterView(
-                        state: petScore.state,
-                        size: 84
-                    )
-                    .frame(width: 96, height: 96)
-
-                    Image(systemName: "xmark")
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(Color.bobInk3)
-                        .padding(.top, 10)
-                        .padding(.trailing, 10)
-                }
+        HStack(spacing: 18) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Monthly spending focus")
+                    .font(.system(size: 17, weight: .bold))
+                    .foregroundStyle(Color.bobInk)
+                    .multilineTextAlignment(.leading)
+                Text(monthlyInsightLine)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(Color.bobInk2)
+                    .multilineTextAlignment(.leading)
+                    .lineLimit(3)
             }
-            .padding(20)
-            .background(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .fill(Color.bobSurface.opacity(0.9))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 20, style: .continuous)
-                            .stroke(Color.bobHairline, lineWidth: 1)
-                    )
-            )
+
+            Spacer(minLength: 8)
+
+            RoundedRectangle(cornerRadius: 26, style: .continuous)
+                .fill(Color.bobSurface2.opacity(0.75))
+                .frame(width: 96, height: 96)
+                .overlay(
+                    Image(systemName: "chart.line.uptrend.xyaxis")
+                        .font(.system(size: 30, weight: .semibold))
+                        .foregroundStyle(Color.bobAccent)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 26, style: .continuous)
+                        .stroke(Color.bobHairline, lineWidth: 1)
+                )
         }
-        .buttonStyle(.plain)
+        .padding(20)
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(Color.bobSurface.opacity(0.9))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .stroke(Color.bobHairline, lineWidth: 1)
+                )
+        )
         .padding(.horizontal, Spacing.pageMargin)
     }
 
     private var budgetLeftText: String {
         guard monthlyBudget > 0 else { return "—" }
         return CurrencyFormatter.compact(monthlyBudget - monthExpensesTotal, code: currencyCode)
-    }
-
-    private var promoTitle: String {
-        switch petScore.state {
-        case .thriving, .celebrating:
-            return "Everything is in rhythm"
-        case .content:
-            return "You’re tracking well"
-        case .neutral:
-            return "Keep the pace steady"
-        case .worried:
-            return "A few things need attention"
-        case .struggling:
-            return "Reset the month with one move"
-        case .sleeping:
-            return "Your companion is waiting"
-        }
     }
 
     private enum DashboardHeroContext {
@@ -491,43 +441,7 @@ struct HomeView: View {
         }
     }
 
-    // MARK: – Pet card
-
-    private var petScore: PetHealthScore {
-        let budgetUsage: Double
-        let hasBudget = monthlyBudget > 0
-        if hasBudget {
-            budgetUsage = Double((monthExpensesTotal / monthlyBudget) as NSDecimalNumber)
-        } else {
-            budgetUsage = 0
-        }
-
-        let activeGoals = goals.filter { $0.isActive && !$0.isCompleted }
-        let hasGoals = !activeGoals.isEmpty
-        let totalTarget = activeGoals.reduce(Decimal(0)) { $0 + $1.targetAmount }
-        let totalSaved  = activeGoals.reduce(Decimal(0)) { $0 + $1.totalSaved }
-        let savingsProgress: Double = totalTarget > 0
-            ? Double((totalSaved / totalTarget) as NSDecimalNumber)
-            : 0
-
-        return PetHealthScore.compute(
-            budgetUsage: budgetUsage,
-            hasBudget: hasBudget,
-            savingsProgress: savingsProgress,
-            hasGoals: hasGoals
-        )
-    }
-
-    private var petCardSection: some View {
-        PetCard(
-            score: petScore,
-            petName: petName,
-            statusLine: companionStatusLine,
-            onTap: { showingPetDetail = true }
-        )
-    }
-
-    private var companionStatusLine: String {
+    private var monthlyInsightLine: String {
         if monthlyBudget > 0 {
             let remaining = monthlyBudget - monthExpensesTotal
             if remaining < 0 {
@@ -544,7 +458,7 @@ struct HomeView: View {
             return "\(CurrencyFormatter.string(remaining, code: currencyCode)) left for \(nearestGoal.name)."
         }
 
-        return "Keep logging to grow your companion."
+        return "Keep logging transactions to sharpen your monthly insights."
     }
 
     // MARK: – Legacy sections

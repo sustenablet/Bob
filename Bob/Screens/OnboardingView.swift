@@ -3,11 +3,7 @@ import SwiftUI
 struct OnboardingView: View {
     @Binding var isPresented: Bool
     @State private var currentPage = 0
-    @AppStorage("petName") private var petName: String = "Buddy"
-    @State private var petNameInput: String = ""
-    @FocusState private var namingFieldFocused: Bool
 
-    private let totalPages = 5
     private let pages: [OnboardingPage] = [
         OnboardingPage(
             title: "Track every\npenny",
@@ -38,6 +34,7 @@ struct OnboardingView: View {
             bgAccent: Color.bobHex(0xFF8A65).opacity(0.08)
         )
     ]
+    private var totalPages: Int { pages.count }
 
     var body: some View {
         ZStack {
@@ -64,8 +61,6 @@ struct OnboardingView: View {
                     ForEach(0..<pages.count, id: \.self) { idx in
                         pageView(pages[idx]).tag(idx)
                     }
-                    // Pet naming page (index 4)
-                    petNamingPage.tag(4)
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
                 .animation(.easeInOut(duration: 0.3), value: currentPage)
@@ -76,7 +71,7 @@ struct OnboardingView: View {
                 VStack(spacing: 32) {
                     pageIndicator
 
-                    if currentPage < totalPages - 1 {
+                    if currentPage < pages.count - 1 {
                         Button {
                             withAnimation { currentPage += 1 }
                         } label: {
@@ -94,11 +89,9 @@ struct OnboardingView: View {
                         }
                     } else {
                         Button {
-                            let name = petNameInput.trimmingCharacters(in: .whitespaces)
-                            petName = name.isEmpty ? "Buddy" : name
                             isPresented = false
                         } label: {
-                            Text("Meet \(petNameInput.trimmingCharacters(in: .whitespaces).isEmpty ? "Buddy" : petNameInput.trimmingCharacters(in: .whitespaces))!")
+                            Text("Get started")
                                 .font(.system(size: 17, weight: .semibold))
                                 .foregroundStyle(.white)
                                 .frame(maxWidth: .infinity)
@@ -149,7 +142,7 @@ struct OnboardingView: View {
     }
 
     private var pageIndicator: some View {
-        let accent: Color = currentPage < pages.count ? pages[currentPage].accent : Color.bobHex(0x588157)
+        let accent: Color = pages[currentPage].accent
         return HStack(spacing: 8) {
             ForEach(0..<totalPages, id: \.self) { idx in
                 Capsule()
@@ -158,44 +151,6 @@ struct OnboardingView: View {
                     .animation(.spring(response: 0.3, dampingFraction: 0.7), value: currentPage)
             }
         }
-    }
-
-    private var petNamingPage: some View {
-        VStack(spacing: 40) {
-            MascotCharacterView(state: .neutral, size: 110)
-
-            VStack(spacing: 16) {
-                Text("Meet your\ncompanion")
-                    .font(.system(size: 36, weight: .bold))
-                    .foregroundStyle(Color.bobInk)
-                    .multilineTextAlignment(.center)
-                    .lineSpacing(2)
-
-                Text("This little creature will reflect your financial health. Give them a name!")
-                    .font(.system(size: 17))
-                    .foregroundStyle(Color.bobInk2)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: 300)
-                    .lineSpacing(3)
-
-                TextField("e.g. Budgie, Penny, Kip…", text: $petNameInput)
-                    .font(.system(size: 17))
-                    .multilineTextAlignment(.center)
-                    .padding(.vertical, 14)
-                    .padding(.horizontal, Spacing.m)
-                    .background(Color.bobSurface)
-                    .clipShape(RoundedRectangle(cornerRadius: Radius.input))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: Radius.input)
-                            .stroke(Color.bobHairline, lineWidth: 1)
-                    )
-                    .focused($namingFieldFocused)
-                    .submitLabel(.done)
-                    .onSubmit { namingFieldFocused = false }
-                    .frame(maxWidth: 280)
-            }
-        }
-        .padding(.horizontal, Spacing.pageMargin)
     }
 }
 

@@ -15,8 +15,7 @@ struct BobApp: App {
             Goal.self,
             GoalContribution.self,
             RecurringTransaction.self,
-            QuickAddTemplate.self,
-            UserStats.self
+            QuickAddTemplate.self
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 
@@ -59,11 +58,6 @@ struct BobApp: App {
         let settingsCount = (try? context.fetchCount(FetchDescriptor<BudgetSettings>())) ?? 0
         if settingsCount == 0 {
             context.insert(BudgetSettings())
-        }
-
-        let statsCount = (try? context.fetchCount(FetchDescriptor<UserStats>())) ?? 0
-        if statsCount == 0 {
-            context.insert(UserStats())
         }
 
         try? context.save()
