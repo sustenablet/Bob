@@ -3,8 +3,6 @@ import SwiftUI
 struct PetDetailView: View {
     let score: PetHealthScore
     let petName: String
-    let unlockedAchievements: [String]
-    let streakDays: Int
 
     @Environment(\.dismiss) private var dismiss
 
@@ -18,8 +16,7 @@ struct PetDetailView: View {
                         VStack(spacing: Spacing.m) {
                             MascotCharacterView(
                                 state: score.state,
-                                size: 110,
-                                unlockedAchievements: unlockedAchievements
+                                size: 110
                             )
 
                             VStack(spacing: 4) {
@@ -52,7 +49,7 @@ struct PetDetailView: View {
                                     label: "Budget",
                                     detail: budgetDetail,
                                     points: score.budgetPoints,
-                                    maxPoints: 40,
+                                    maxPoints: 70,
                                     icon: "chart.bar.fill",
                                     color: budgetColor
                                 )
@@ -62,29 +59,9 @@ struct PetDetailView: View {
                                     label: "Savings Goals",
                                     detail: savingsDetail,
                                     points: score.savingsPoints,
-                                    maxPoints: 20,
+                                    maxPoints: 30,
                                     icon: "target",
                                     color: Color.bobHex(0xBA68C8)
-                                )
-                                Divider().background(Color.bobHairline).padding(.leading, 56)
-
-                                scoreRow(
-                                    label: "Daily Streak",
-                                    detail: streakDetail,
-                                    points: score.streakPoints,
-                                    maxPoints: 20,
-                                    icon: "flame.fill",
-                                    color: Color.bobHex(0xFF8A65)
-                                )
-                                Divider().background(Color.bobHairline).padding(.leading, 56)
-
-                                scoreRow(
-                                    label: "Achievements",
-                                    detail: "\(unlockedAchievements.count) of 9 earned",
-                                    points: score.achievementPoints,
-                                    maxPoints: 20,
-                                    icon: "star.fill",
-                                    color: Color.bobHex(0xFFCC00)
                                 )
                             }
                             .background(Color.bobSurface)
@@ -217,11 +194,6 @@ struct PetDetailView: View {
         return "\(pct)% of goals on track"
     }
 
-    private var streakDetail: String {
-        if streakDays == 0 { return "No active streak" }
-        return "\(streakDays) day\(streakDays == 1 ? "" : "s") in a row"
-    }
-
     private var budgetColor: Color {
         switch score.budgetPoints {
         case 28...40: return Color.bobGreen
@@ -241,24 +213,6 @@ struct PetDetailView: View {
     }
 
     private var nextMilestoneText: String? {
-        if !unlockedAchievements.contains("streak_7") && streakDays > 0 {
-            let remaining = max(7 - streakDays, 0)
-            if remaining > 0 {
-                return "\(remaining) more day\(remaining == 1 ? "" : "s") to unlock Week Warrior."
-            }
-        }
-
-        if !unlockedAchievements.contains("streak_30") && streakDays >= 7 {
-            let remaining = max(30 - streakDays, 0)
-            if remaining > 0 {
-                return "\(remaining) more day\(remaining == 1 ? "" : "s") to unlock Month Master."
-            }
-        }
-
-        if unlockedAchievements.count < AchievementDefinition.all.count {
-            return "Keep building your streak, goals, and budget discipline to unlock more rewards."
-        }
-
-        return "Every badge is unlocked. Your companion is fully decked out."
+        "Your companion responds to budget room and savings progress."
     }
 }

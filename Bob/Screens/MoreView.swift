@@ -11,8 +11,6 @@ struct MoreView: View {
     @Query(sort: \BudgetSettings.monthlyBudget) private var settingsList: [BudgetSettings]
 
     @AppStorage("userName") private var userName: String = ""
-    @State private var showingAchievements = false
-
     private var currencyCode: String { settingsList.first?.currencyCode ?? "USD" }
     private var activeGoals: [Goal] { goals.filter { $0.isActive && !$0.isCompleted } }
     private var totalThisMonth: Decimal {
@@ -40,9 +38,6 @@ struct MoreView: View {
                 }
             }
             .navigationBarHidden(true)
-            .sheet(isPresented: $showingAchievements) {
-                AchievementsView()
-            }
         }
     }
 
@@ -141,20 +136,6 @@ struct MoreView: View {
             sectionLabel("MY APP")
 
             VStack(spacing: 0) {
-                Button {
-                    showingAchievements = true
-                } label: {
-                    moreRow(
-                        icon: "trophy.fill",
-                        iconColor: Color.bobAccent,
-                        label: "Achievements",
-                        badge: nil
-                    )
-                }
-                .buttonStyle(.plain)
-
-                divider
-
                 NavigationLink(destination: GoalsView()) {
                     moreRow(
                         icon: "target",

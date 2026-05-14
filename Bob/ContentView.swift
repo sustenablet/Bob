@@ -5,8 +5,6 @@ struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
 
     @State private var selectedTab: BobTab = .home
-    @State private var pendingAchievements: [String] = []
-    @State private var visibleAchievement: String? = nil
 
     @Query(sort: \BudgetSettings.monthlyBudget) private var settingsList: [BudgetSettings]
     private var currencyCode: String { settingsList.first?.currencyCode ?? "USD" }
@@ -29,37 +27,8 @@ struct ContentView: View {
             )
             .padding(.horizontal, 24)
             .padding(.bottom, 20)
-
-            // Achievement unlock banner
-            if let id = visibleAchievement {
-                AchievementBanner(achievementID: id) {
-                    visibleAchievement = nil
-                    showNextAchievement()
-                }
-                .zIndex(100)
-                .transition(.move(edge: .top).combined(with: .opacity))
-                .frame(maxHeight: .infinity, alignment: .top)
-            }
         }
         .background(Color.bobBackground.ignoresSafeArea())
-        .onChange(of: pendingAchievements) { _, new in
-            if visibleAchievement == nil, !new.isEmpty { showNextAchievement() }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .bobAchievementsUnlocked)) { notification in
-            enqueueAchievements(GamificationNotifier.achievementIDs(from: notification))
-        }
-    }
-
-    func enqueueAchievements(_ ids: [String]) {
-        pendingAchievements.append(contentsOf: ids)
-        if visibleAchievement == nil { showNextAchievement() }
-    }
-
-    private func showNextAchievement() {
-        guard !pendingAchievements.isEmpty else { return }
-        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-            visibleAchievement = pendingAchievements.removeFirst()
-        }
     }
 
     @ViewBuilder

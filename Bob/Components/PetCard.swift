@@ -3,7 +3,6 @@ import SwiftUI
 struct PetCard: View {
     let score: PetHealthScore
     let petName: String
-    let unlockedAchievements: [String]
     var statusLine: String? = nil
     var stateOverride: PetState? = nil
     var onTap: (() -> Void)? = nil
@@ -13,7 +12,7 @@ struct PetCard: View {
     var body: some View {
         Button { onTap?() } label: {
             HStack(spacing: Spacing.m) {
-                MascotCharacterView(state: displayState, size: 72, unlockedAchievements: unlockedAchievements)
+                MascotCharacterView(state: displayState, size: 72)
 
                 VStack(alignment: .leading, spacing: 6) {
                     HStack(spacing: 6) {

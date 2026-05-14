@@ -3,7 +3,6 @@ import SwiftUI
 struct PetCharacter: View {
     let state: PetState
     var size: CGFloat = 80
-    var unlockedAchievements: [String] = []
 
     @State private var bounceOffset: CGFloat = 0
     @State private var breathScale: CGFloat = 1.0
@@ -30,11 +29,6 @@ struct PetCharacter: View {
                 .offset(y: bounceOffset)
                 .scaleEffect(breathScale * celebrateScale)
                 .offset(x: jitterOffset)
-                .rotationEffect(.degrees(bodyTilt))
-
-            accessoryLayer
-                .offset(y: bounceOffset)
-                .scaleEffect(breathScale * celebrateScale)
                 .rotationEffect(.degrees(bodyTilt))
 
             if state == .sleeping {
@@ -337,44 +331,6 @@ struct PetCharacter: View {
             .stroke(Color.bobInk.opacity(0.82), style: StrokeStyle(lineWidth: 2.2, lineCap: .round))
             .frame(width: size * 0.33, height: size * 0.15)
             .offset(y: size * 0.14)
-    }
-
-    @ViewBuilder
-    private var accessoryLayer: some View {
-        ZStack {
-            if unlockedAchievements.contains("streak_30") {
-                Image(systemName: "crown.fill")
-                    .font(.system(size: size * 0.24))
-                    .foregroundStyle(Color.bobHex(0xFFCC00))
-                    .offset(y: -size * 0.5)
-            } else if unlockedAchievements.contains("streak_7") {
-                Image(systemName: "star.fill")
-                    .font(.system(size: size * 0.19))
-                    .foregroundStyle(Color.bobHex(0xFFCC00))
-                    .offset(y: -size * 0.5)
-            }
-
-            if unlockedAchievements.contains("budget_hero") {
-                Image(systemName: "shield.fill")
-                    .font(.system(size: size * 0.17))
-                    .foregroundStyle(Color.bobHex(0x1A73E8))
-                    .offset(x: size * 0.32, y: size * 0.05)
-            }
-
-            if unlockedAchievements.contains("goal_complete") {
-                Image(systemName: "dollarsign.circle.fill")
-                    .font(.system(size: size * 0.17))
-                    .foregroundStyle(Color.bobHex(0xFFAA00))
-                    .offset(x: -size * 0.34, y: size * 0.1)
-            }
-
-            if unlockedAchievements.contains("tx_100") {
-                Image(systemName: "laurel.leading")
-                    .font(.system(size: size * 0.15))
-                    .foregroundStyle(Color.bobHex(0x588157))
-                    .offset(x: -size * 0.43, y: -size * 0.08)
-            }
-        }
     }
 
     private var bodyColor: Color {

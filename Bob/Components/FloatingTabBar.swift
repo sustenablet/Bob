@@ -20,15 +20,8 @@ struct FloatingTabBar: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 10)
-        .background(
-            RoundedRectangle(cornerRadius: 30, style: .continuous)
-                .fill(Color.white.opacity(0.07))
-                .shadow(color: .black.opacity(0.28), radius: 28, x: 0, y: 10)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 30, style: .continuous)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                )
-        )
+        .glassEffect(in: RoundedRectangle(cornerRadius: 30, style: .continuous))
+        .shadow(color: .black.opacity(0.16), radius: 20, x: 0, y: 10)
     }
 
     private func tabButton(_ tab: BobTab, icon: String, label: String) -> some View {
@@ -39,16 +32,16 @@ struct FloatingTabBar: View {
             VStack(spacing: 4) {
                 Image(systemName: icon)
                     .font(.system(size: 18, weight: selected == tab ? .semibold : .regular))
-                    .foregroundStyle(selected == tab ? .white : Color.white.opacity(0.7))
+                    .foregroundStyle(selected == tab ? Color.bobInk : Color.bobInk2)
                 Text(label)
                     .font(.system(size: 10, weight: selected == tab ? .semibold : .regular))
-                    .foregroundStyle(selected == tab ? .white : Color.white.opacity(0.66))
+                    .foregroundStyle(selected == tab ? Color.bobInk : Color.bobInk2)
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 8)
             .background(
                 RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .fill(selected == tab ? Color.white.opacity(0.15) : Color.clear)
+                    .fill(selected == tab ? Color.bobSurface.opacity(0.45) : Color.clear)
             )
             .contentShape(Rectangle())
             .accessibilityLabel(label)

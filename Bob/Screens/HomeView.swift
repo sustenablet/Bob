@@ -13,18 +13,13 @@ struct HomeView: View {
     @Query(sort: \BudgetSettings.monthlyBudget) private var settingsList: [BudgetSettings]
     @Query(sort: \Goal.createdAt, order: .reverse) private var goals: [Goal]
     @Query(sort: \RecurringTransaction.nextDueDate) private var recurrings: [RecurringTransaction]
-    @Query private var statsList: [UserStats]
 
     @AppStorage("userName") private var userName: String = ""
     @AppStorage("petName") private var petName: String = "Buddy"
     @State private var editingExpense: Expense?
     @State private var isAddingTransaction = false
-    @State private var showingAchievements = false
     @State private var showingPetDetail = false
-    @State private var celebratingPet = false
     @State private var showAllTransactions = false
-
-    private var stats: UserStats? { statsList.first }
 
     // MARK: – Core data
 
@@ -163,23 +158,12 @@ struct HomeView: View {
         .sheet(isPresented: $showingPetDetail) {
             PetDetailView(
                 score: petScore,
-                petName: petName,
-                unlockedAchievements: stats?.earnedAchievementIDs ?? [],
-                streakDays: stats?.currentStreak ?? 0
+                petName: petName
             )
         }
         .sheet(isPresented: $showAllTransactions) {
             NavigationStack {
                 TransactionsListView()
-            }
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .bobAchievementsUnlocked)) { notification in
-            let ids = GamificationNotifier.achievementIDs(from: notification)
-            guard !ids.isEmpty else { return }
-            celebratingPet = true
-            Task {
-                try? await Task.sleep(for: .seconds(4))
-                await MainActor.run { celebratingPet = false }
             }
         }
     }
@@ -188,12 +172,12 @@ struct HomeView: View {
 
     private var dashboardBackground: some View {
         ZStack {
-            Color.bobDark
+            Color.bobBackground
             LinearGradient(
                 colors: [
-                    Color.bobAccent.opacity(0.92),
-                    Color.bobAccent.opacity(0.58),
-                    Color.bobDark
+                    Color.bobAccent.opacity(0.18),
+                    Color.bobAccent.opacity(0.08),
+                    Color.bobBackground
                 ],
                 startPoint: .top,
                 endPoint: UnitPoint(x: 0.5, y: 0.58)
@@ -202,7 +186,7 @@ struct HomeView: View {
 
             RadialGradient(
                 colors: [
-                    Color.white.opacity(0.12),
+                    Color.bobAccent.opacity(0.12),
                     Color.clear
                 ],
                 center: UnitPoint(x: 0.15, y: 0.16),
@@ -220,20 +204,20 @@ struct HomeView: View {
 
             VStack(spacing: 10) {
                 Text(heroTitle)
-                    .font(.system(size: 19, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.82))
-                    .padding(.top, 28)
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(Color.bobInk2)
+                    .padding(.top, 22)
 
                 HStack(alignment: .lastTextBaseline, spacing: 0) {
                     Text(CurrencyFormatter.string(heroAmount, code: currencyCode))
-                        .font(.system(size: 58, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white)
+                        .font(.system(size: 36, weight: .bold, design: .rounded))
+                        .foregroundStyle(Color.bobInk)
                         .minimumScaleFactor(0.72)
                         .lineLimit(1)
                     if heroSecondaryText != nil {
                         Text(heroSecondaryText ?? "")
-                            .font(.system(size: 18, weight: .semibold))
-                            .foregroundStyle(.white.opacity(0.78))
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(Color.bobInk2)
                             .padding(.leading, 8)
                     }
                 }
@@ -243,16 +227,16 @@ struct HomeView: View {
                     showAllTransactions = true
                 } label: {
                     Text(heroButtonTitle)
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 32)
-                        .padding(.vertical, 14)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(Color.bobInk)
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 11)
                         .background(
                             Capsule()
-                                .fill(Color.white.opacity(0.24))
+                                .fill(Color.bobSurface.opacity(0.9))
                                 .overlay(
                                     Capsule()
-                                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                                        .stroke(Color.bobHairline, lineWidth: 1)
                                 )
                         )
                 }
@@ -264,12 +248,12 @@ struct HomeView: View {
                     pageDot(active: heroCardContext == .budget)
                     pageDot(active: heroCardContext == .goals)
                 }
-                .padding(.top, 34)
+                .padding(.top, 24)
             }
 
             shortcutRow
                 .padding(.horizontal, Spacing.pageMargin)
-                .padding(.top, 28)
+                .padding(.top, 22)
         }
     }
 
@@ -277,28 +261,13 @@ struct HomeView: View {
         HStack(spacing: 12) {
             Button { showingPetDetail = true } label: {
                 ZStack(alignment: .topTrailing) {
-                    Circle()
-                        .fill(Color.white.opacity(0.2))
-                        .frame(width: 58, height: 58)
-                        .overlay(
-                            Circle()
-                                .stroke(Color.white.opacity(0.15), lineWidth: 1)
-                        )
-
                     MascotCharacterView(
-                        state: celebratingPet ? .celebrating : petScore.state,
-                        size: 34,
-                        unlockedAchievements: stats?.earnedAchievementIDs ?? []
+                        state: petScore.state,
+                        size: 34
                     )
-                    .frame(width: 58, height: 58)
-
-                    if celebratingPet || hasNotificationDot {
-                        Circle()
-                            .fill(Color.bobNotify)
-                            .frame(width: 10, height: 10)
-                            .offset(x: 2, y: -2)
-                    }
+                    .frame(width: 46, height: 46)
                 }
+                .glassEffect(in: Circle())
             }
             .buttonStyle(.plain)
 
@@ -306,22 +275,15 @@ struct HomeView: View {
                 HStack(spacing: 12) {
                     Image(systemName: "magnifyingglass")
                         .font(.system(size: 22, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.92))
+                        .foregroundStyle(Color.bobInk2)
                     Text("Search")
-                        .font(.system(size: 20, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.88))
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundStyle(Color.bobInk2)
                     Spacer()
                 }
                 .padding(.horizontal, 18)
-                .frame(height: 58)
-                .background(
-                    Capsule()
-                        .fill(Color.white.opacity(0.08))
-                        .overlay(
-                            Capsule()
-                                .stroke(Color.white.opacity(0.12), lineWidth: 1)
-                        )
-                )
+                .frame(height: 46)
+                .glassEffect(in: Capsule())
             }
             .buttonStyle(.plain)
 
@@ -333,25 +295,20 @@ struct HomeView: View {
     private func compactHeroIcon(systemName: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             ZStack {
-                Circle()
-                    .fill(Color.white.opacity(0.08))
-                    .overlay(
-                        Circle()
-                            .stroke(Color.white.opacity(0.12), lineWidth: 1)
-                    )
-                    .frame(width: 58, height: 58)
                 Image(systemName: systemName)
-                    .font(.system(size: 21, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.9))
+                    .font(.system(size: 18, weight: .medium))
+                    .foregroundStyle(Color.bobInk2)
             }
+            .frame(width: 46, height: 46)
+            .glassEffect(in: Circle())
         }
         .buttonStyle(.plain)
     }
 
     private func pageDot(active: Bool) -> some View {
         Circle()
-            .fill(active ? Color.white.opacity(0.95) : Color.white.opacity(0.36))
-            .frame(width: 10, height: 10)
+            .fill(active ? Color.bobInk.opacity(0.7) : Color.bobInk.opacity(0.2))
+            .frame(width: 7, height: 7)
     }
 
     private var shortcutRow: some View {
@@ -384,15 +341,15 @@ struct HomeView: View {
             VStack(spacing: 10) {
                 ZStack {
                     Circle()
-                        .fill(Color.white.opacity(0.18))
-                        .frame(width: 68, height: 68)
+                        .fill(Color.bobSurface.opacity(0.9))
+                        .frame(width: 52, height: 52)
                     Image(systemName: icon)
-                        .font(.system(size: 24, weight: .medium))
-                        .foregroundStyle(.white)
+                        .font(.system(size: 20, weight: .medium))
+                        .foregroundStyle(Color.bobInk)
                 }
                 Text(label)
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Color.bobInk)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: .infinity)
                     .lineLimit(2)
@@ -407,12 +364,12 @@ struct HomeView: View {
             HStack(spacing: 18) {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("\(petName) is watching your money")
-                        .font(.system(size: 20, weight: .bold))
-                        .foregroundStyle(.white)
+                        .font(.system(size: 17, weight: .bold))
+                        .foregroundStyle(Color.bobInk)
                         .multilineTextAlignment(.leading)
                     Text(companionStatusLine)
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundStyle(Color.white.opacity(0.75))
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(Color.bobInk2)
                         .multilineTextAlignment(.leading)
                         .lineLimit(3)
                 }
@@ -421,41 +378,37 @@ struct HomeView: View {
 
                 ZStack(alignment: .topTrailing) {
                     RoundedRectangle(cornerRadius: 26, style: .continuous)
-                        .fill(Color.white.opacity(0.03))
-                        .frame(width: 126, height: 126)
+                        .fill(Color.bobSurface2.opacity(0.75))
+                        .frame(width: 96, height: 96)
                         .overlay(
                             RoundedRectangle(cornerRadius: 26, style: .continuous)
-                                .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                                .stroke(Color.bobHairline, lineWidth: 1)
                         )
                     MascotCharacterView(
-                        state: celebratingPet ? .celebrating : petScore.state,
-                        size: 84,
-                        unlockedAchievements: stats?.earnedAchievementIDs ?? []
+                        state: petScore.state,
+                        size: 84
                     )
-                    .frame(width: 126, height: 126)
+                    .frame(width: 96, height: 96)
 
                     Image(systemName: "xmark")
-                        .font(.system(size: 15, weight: .bold))
-                        .foregroundStyle(Color.white.opacity(0.34))
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(Color.bobInk3)
                         .padding(.top, 10)
                         .padding(.trailing, 10)
                 }
             }
             .padding(20)
             .background(
-                RoundedRectangle(cornerRadius: 28, style: .continuous)
-                    .fill(Color.white.opacity(0.09))
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .fill(Color.bobSurface.opacity(0.9))
                     .overlay(
-                        RoundedRectangle(cornerRadius: 28, style: .continuous)
-                            .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                        RoundedRectangle(cornerRadius: 20, style: .continuous)
+                            .stroke(Color.bobHairline, lineWidth: 1)
                     )
             )
         }
         .buttonStyle(.plain)
         .padding(.horizontal, Spacing.pageMargin)
-        .sheet(isPresented: $showingAchievements) {
-            AchievementsView()
-        }
     }
 
     private var budgetLeftText: String {
@@ -478,10 +431,6 @@ struct HomeView: View {
         case .sleeping:
             return "Your companion is waiting"
         }
-    }
-
-    private var hasNotificationDot: Bool {
-        (stats?.currentStreak ?? 0) >= 2 || celebratingPet
     }
 
     private enum DashboardHeroContext {
@@ -565,10 +514,7 @@ struct HomeView: View {
             budgetUsage: budgetUsage,
             hasBudget: hasBudget,
             savingsProgress: savingsProgress,
-            hasGoals: hasGoals,
-            streakDays: stats?.currentStreak ?? 0,
-            achievementsEarned: stats?.earnedAchievementIDs.count ?? 0,
-            totalAchievements: AchievementDefinition.all.count
+            hasGoals: hasGoals
         )
     }
 
@@ -576,25 +522,12 @@ struct HomeView: View {
         PetCard(
             score: petScore,
             petName: petName,
-            unlockedAchievements: stats?.earnedAchievementIDs ?? [],
             statusLine: companionStatusLine,
-            stateOverride: celebratingPet ? .celebrating : nil,
             onTap: { showingPetDetail = true }
         )
     }
 
     private var companionStatusLine: String {
-        if celebratingPet {
-            return "New achievement unlocked."
-        }
-
-        if let stats, !stats.earnedAchievementIDs.contains("streak_7"), stats.currentStreak > 0 {
-            let remaining = max(7 - stats.currentStreak, 0)
-            if remaining > 0 {
-                return "\(remaining) more day\(remaining == 1 ? "" : "s") to unlock Week Warrior."
-            }
-        }
-
         if monthlyBudget > 0 {
             let remaining = monthlyBudget - monthExpensesTotal
             if remaining < 0 {
@@ -822,26 +755,6 @@ struct HomeView: View {
             }
             .buttonStyle(.plain)
 
-            // Streak chip — only shown at 2+ days
-            if let streak = stats?.currentStreak, streak >= 2 {
-                Button { showingAchievements = true } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "flame.fill")
-                            .font(.system(size: 13))
-                            .foregroundStyle(Color.bobAccent)
-                        Text("\(streak)")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(Color.bobAccent)
-                    }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
-                    .background(Color.bobSurface)
-                    .clipShape(Capsule())
-                    .overlay(Capsule().stroke(Color.bobHairline, lineWidth: 1))
-                }
-                .buttonStyle(.plain)
-            }
-
             Spacer()
 
             Text(todayLabel)
@@ -862,9 +775,6 @@ struct HomeView: View {
                 }
             }
             .buttonStyle(.plain)
-        }
-        .sheet(isPresented: $showingAchievements) {
-            AchievementsView()
         }
     }
 
@@ -1244,19 +1154,19 @@ struct HomeView: View {
                     }
 
                     Text("See all")
-                        .font(.system(size: 20, weight: .bold))
-                        .foregroundStyle(.white)
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(Color.bobInk)
                         .frame(maxWidth: .infinity)
-                        .padding(.top, 30)
+                        .padding(.top, 20)
                 }
-                .padding(.horizontal, 20)
-                .padding(.vertical, 24)
+                .padding(.horizontal, Spacing.m)
+                .padding(.vertical, Spacing.m)
                 .background(
-                    RoundedRectangle(cornerRadius: 28, style: .continuous)
-                        .fill(Color.white.opacity(0.09))
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .fill(Color.bobSurface.opacity(0.9))
                         .overlay(
-                            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                                .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                                .stroke(Color.bobHairline, lineWidth: 1)
                         )
                 )
                 .padding(.horizontal, Spacing.pageMargin)
@@ -1264,26 +1174,26 @@ struct HomeView: View {
                 HStack(spacing: 14) {
                     ZStack {
                         Circle()
-                            .fill(Color.white.opacity(0.12))
-                            .frame(width: 50, height: 50)
+                            .fill(Color.bobSurface2.opacity(0.9))
+                            .frame(width: 44, height: 44)
                         Image(systemName: "chart.line.uptrend.xyaxis")
-                            .font(.system(size: 20, weight: .semibold))
-                            .foregroundStyle(.white)
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundStyle(Color.bobInk)
                     }
                     VStack(alignment: .leading, spacing: 2) {
                         Text("No recent transactions")
                             .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Color.bobInk)
                         Text("Open analytics to review your spending once activity appears.")
                             .font(.system(size: 13))
-                            .foregroundStyle(Color.white.opacity(0.7))
+                            .foregroundStyle(Color.bobInk2)
                     }
                     Spacer()
                 }
                 .padding(18)
                 .background(
                     RoundedRectangle(cornerRadius: 24, style: .continuous)
-                        .fill(Color.white.opacity(0.08))
+                        .fill(Color.bobSurface.opacity(0.9))
                 )
                 .padding(.horizontal, Spacing.pageMargin)
             }
@@ -1299,33 +1209,33 @@ struct HomeView: View {
         let isIncome = tx.kind == .income
         let amount = CurrencyFormatter.string(tx.amount, code: currencyCode)
         let display = isIncome ? "+\(amount)" : "-\(amount)"
-        let amountColor: Color = isIncome ? .white : .white
+        let amountColor: Color = isIncome ? .bobGreen : .bobInk
 
-        return HStack(alignment: .top, spacing: 18) {
+        return HStack(alignment: .top, spacing: 14) {
             // Icon
             ZStack {
                 Circle()
                     .fill(isIncome ? Color.bobGreen : Color.bobHex(0x7AD744))
-                    .frame(width: 60, height: 60)
+                    .frame(width: 44, height: 44)
                 Image(systemName: tx.category?.sfSymbol ?? "circle.dashed")
-                    .font(.system(size: 24, weight: .semibold))
+                    .font(.system(size: 18, weight: .semibold))
                     .foregroundStyle(.white)
             }
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(displayTitle(for: tx))
-                    .font(.system(size: 22, weight: .bold))
-                    .foregroundStyle(.white)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(Color.bobInk)
                     .lineLimit(2)
                 Text(relativeDate(tx.date))
-                    .font(.system(size: 19, weight: .medium))
-                    .foregroundStyle(Color.white.opacity(0.7))
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(Color.bobInk2)
             }
 
             Spacer()
 
             Text(display)
-                .font(.system(size: 22, weight: .medium))
+                .font(.system(size: 16, weight: .semibold))
                 .monospacedDigit()
                 .foregroundStyle(amountColor)
         }
@@ -1338,13 +1248,13 @@ struct HomeView: View {
         Button { onSwitchTab?(.spending) } label: {
             VStack(alignment: .leading, spacing: 0) {
                 Text("Spent this month")
-                    .font(.system(size: 20, weight: .bold))
-                    .foregroundStyle(Color.white.opacity(0.58))
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Color.bobInk2)
 
                 HStack(alignment: .lastTextBaseline, spacing: 12) {
                     Text(CurrencyFormatter.string(monthExpensesTotal, code: currencyCode))
-                        .font(.system(size: 48, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white)
+                        .font(.system(size: 34, weight: .bold, design: .rounded))
+                        .foregroundStyle(Color.bobInk)
                         .monospacedDigit()
                         .minimumScaleFactor(0.7)
                         .lineLimit(1)
@@ -1352,9 +1262,9 @@ struct HomeView: View {
                     if lastMonthExpensesTotal > 0 {
                         HStack(spacing: 6) {
                             Image(systemName: momIsPositive ? "arrowtriangle.down.fill" : "arrowtriangle.up.fill")
-                                .font(.system(size: 14, weight: .bold))
+                                .font(.system(size: 11, weight: .bold))
                             Text(CurrencyFormatter.string(abs(momDiff as NSDecimalNumber as Decimal), code: currencyCode))
-                                .font(.system(size: 20, weight: .bold))
+                                .font(.system(size: 15, weight: .bold))
                                 .monospacedDigit()
                         }
                         .foregroundStyle(momIsPositive ? Color.bobGreen.opacity(0.9) : Color.bobDebit.opacity(0.95))
@@ -1363,24 +1273,22 @@ struct HomeView: View {
                     Spacer(minLength: 4)
 
                     Text(CurrencyFormatter.compact(projectedMonthSpend, code: currencyCode))
-                        .font(.system(size: 21, weight: .bold))
-                        .foregroundStyle(Color.white.opacity(0.68))
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(Color.bobInk2)
                         .monospacedDigit()
                 }
                 .padding(.top, 4)
 
                 monthlySpendGraph
-                    .padding(.top, 20)
+                    .padding(.top, 14)
             }
-            .padding(.horizontal, 22)
-            .padding(.top, 24)
-            .padding(.bottom, 22)
+            .padding(Spacing.m)
             .background(
-                RoundedRectangle(cornerRadius: 28, style: .continuous)
-                    .fill(Color.white.opacity(0.09))
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .fill(Color.bobSurface.opacity(0.9))
                     .overlay(
-                        RoundedRectangle(cornerRadius: 28, style: .continuous)
-                            .stroke(Color.white.opacity(0.06), lineWidth: 1)
+                        RoundedRectangle(cornerRadius: 20, style: .continuous)
+                            .stroke(Color.bobHairline, lineWidth: 1)
                     )
             )
             .padding(.horizontal, Spacing.pageMargin)
@@ -1414,7 +1322,7 @@ struct HomeView: View {
 
                 ZStack {
                     LinearGradient(
-                        colors: [Color.white.opacity(0.12), Color.clear],
+                        colors: [Color.bobInk.opacity(0.08), Color.clear],
                         startPoint: .top,
                         endPoint: .bottom
                     )
@@ -1422,7 +1330,7 @@ struct HomeView: View {
 
                     if projected.count > 1 {
                         monthlyLinePath(data: projected, w: w, h: h, days: days, maxAmount: maxAmount)
-                            .stroke(Color.white.opacity(0.22), style: StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round, dash: [5, 7]))
+                            .stroke(Color.bobInk.opacity(0.18), style: StrokeStyle(lineWidth: 2.2, lineCap: .round, lineJoin: .round, dash: [5, 7]))
                     }
 
                     if actual.count > 1 {
@@ -1436,21 +1344,21 @@ struct HomeView: View {
                             )
 
                         monthlyLinePath(data: actual, w: w, h: h, days: days, maxAmount: maxAmount)
-                            .stroke(Color.bobGreen.opacity(0.92), style: StrokeStyle(lineWidth: 4, lineCap: .round, lineJoin: .round))
+                            .stroke(Color.bobGreen.opacity(0.92), style: StrokeStyle(lineWidth: 2.8, lineCap: .round, lineJoin: .round))
                     } else if monthExpensesTotal <= 0 {
                         Text("No spending data yet")
                             .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(Color.white.opacity(0.58))
+                            .foregroundStyle(Color.bobInk2)
                     }
                 }
             }
-            .frame(height: 138)
+            .frame(height: 96)
 
             HStack {
                 ForEach(monthAxisDays(days: days), id: \.self) { day in
                     Text("\(day)")
-                        .font(.system(size: 18, weight: .medium))
-                        .foregroundStyle(Color.white.opacity(0.55))
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(Color.bobInk2)
                         .frame(maxWidth: .infinity, alignment: day == 1 ? .leading : day == days ? .trailing : .center)
                 }
             }
