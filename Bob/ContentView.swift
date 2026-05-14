@@ -39,7 +39,7 @@ struct ContentView: View {
         case .recurring:
             RecurringTransactionsView()
         case .spending:
-            AnalyticsView()
+            SpendingContainerView()
         case .more:
             MoreView()
         }
